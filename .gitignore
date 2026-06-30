@@ -1,0 +1,40 @@
+# Carpetas excluidas del repositorio
+example/
+plan/
+
+# Entorno y secretos
+.env
+*.env.local
+
+# Archivos subidos
+uploads/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+dist/
+build/
+*.egg-info/
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+*.tar
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
