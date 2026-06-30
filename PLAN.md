@@ -209,24 +209,15 @@ curl.exe -s -b "$env:TEMP\cookies.txt" -X POST "http://localhost:8000/admin/proc
   - `swap_collections(db, new_name)` — escribe `previous_collection` ← actual, `active_collection` ← `new_name`; borra colecciones con antigüedad > 2
 
 **Cómo probar**
-```bash
-# Con docker-compose levantado:
-docker-compose exec app python - <<'EOF'
-from app.vector_store import get_client, create_collection, upsert_points, search
-from qdrant_client.models import PointStruct
+```powershell
+# Tests automatizados con cobertura (Qdrant mockeado, sin servicios externos)
+docker-compose exec app pytest --cov=app --cov-report=term-missing --cov-fail-under=80
 
-client = get_client()
-create_collection("test_col")
-upsert_points("test_col", [
-    PointStruct(id=1, vector=[0.1]*1536, payload={"source":"a.pdf","page":1,"content":"hola"})
-])
-results = search("test_col", [0.1]*1536, top_k=1)
-print(results)
-# Esperado: [{"source":"a.pdf","page":1,"score":~1.0,"content":"hola"}]
-client.delete_collection("test_col")
-EOF
+# Prueba de integración manual (opcional, requiere docker-compose levantado)
+docker-compose exec app python -c "from app.vector_store import get_client, create_collection, upsert_points, search; from qdrant_client.models import PointStruct; c=get_client(); c.delete_collection('test_col') if c.collection_exists('test_col') else None; create_collection('test_col'); upsert_points('test_col',[PointStruct(id=1,vector=[0.1]*1536,payload={'source':'a.pdf','page':1,'content':'hola'})]); print(search('test_col',[0.1]*1536,top_k=1)); c.delete_collection('test_col')"
+# Esperado: [{'source': 'a.pdf', 'page': 1, 'score': ~1.0, 'content': 'hola'}]
 ```
-> Verificar también que Qdrant UI (http://localhost:6333/dashboard) muestra la colección durante el test y desaparece tras el borrado.
+> Verificar también que Qdrant UI (http://localhost:6333/dashboard) muestra la colección durante la prueba manual y desaparece tras el borrado.
 
 ⛔ **Esperar confirmación antes de iniciar Fase 6.**
 
