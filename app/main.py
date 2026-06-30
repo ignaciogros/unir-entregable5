@@ -1,7 +1,16 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 
-app = FastAPI(title="RAG Chatbot")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    from app import init_db
+    init_db.init()
+    yield
+
+
+app = FastAPI(title="RAG Chatbot", lifespan=lifespan)
 
 
 @app.get("/")

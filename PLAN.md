@@ -55,16 +55,16 @@ docker-compose logs app
 **Objetivo**: PostgreSQL accesible con tablas creadas y usuario inicial al arrancar.
 
 **Tareas**
-- [ ] `app/database.py` — SQLAlchemy engine síncrono + `SessionLocal` + `get_db()` + `Base`
-- [ ] `app/models.py` — tres tablas:
+- [x] `app/database.py` — SQLAlchemy engine síncrono + `SessionLocal` + `get_db()` + `Base`
+- [x] `app/models.py` — tres tablas:
   ```
   users(id SERIAL PK, username TEXT UNIQUE NOT NULL, hashed_password TEXT NOT NULL)
   config(key TEXT PK, value TEXT NOT NULL)
   uploaded_files(id SERIAL PK, filename TEXT UNIQUE NOT NULL, size_bytes INT,
                  uploaded_at TIMESTAMP DEFAULT now(), processed BOOL DEFAULT false)
   ```
-- [ ] `app/init_db.py` — `init()`: crea tablas con `Base.metadata.create_all()`, inserta usuario desde `APP_USER`/`APP_PASSWORD` (bcrypt hash) si `users` está vacía
-- [ ] Llamar `init_db.init()` en el `lifespan` de `main.py`
+- [x] `app/init_db.py` — `init()`: crea tablas con `Base.metadata.create_all()`, inserta usuario desde `APP_USER`/`APP_PASSWORD` (bcrypt hash) si `users` está vacía
+- [x] Llamar `init_db.init()` en el `lifespan` de `main.py`
 
 **Cómo probar**
 ```bash
