@@ -1,0 +1,16 @@
+from fastapi.testclient import TestClient
+from app.main import app
+
+client = TestClient(app)
+
+
+def test_health():
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+def test_root_redirects_to_login():
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code in (307, 302)
+    assert response.headers["location"] == "/login"

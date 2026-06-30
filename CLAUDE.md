@@ -267,6 +267,7 @@ docker-compose up --build app
 ## Reglas de trabajo (leer antes de implementar)
 
 - **Fases**: implementar una fase completa, luego ejecutar sus pruebas, luego preguntar al usuario antes de pasar a la siguiente. No se salta ningún gate.
+- **Cobertura de tests**: mínimo **80 %** medido con `pytest-cov`. Los tests se escriben en cada fase junto al código. El gate de cada fase incluye pasar `pytest --cov=app --cov-report=term-missing --cov-fail-under=80`. El pipeline CI/CD también lo aplica.
 - **UI**: diseñar con a11y en mente desde el principio (roles ARIA, etiquetas `<label>`, contraste suficiente, navegación por teclado, atributos `alt`). La UI final (diseño visual, tipografía, paleta) la genera el plugin `/frontend-design` — las plantillas de las fases intermedias son funcionales y accesibles, no necesariamente bonitas.
 - **Documentación**:
   - `README.md` en español, completo, como proyecto final: descripción, arquitectura, requisitos, guía de ejecución local, guía de despliegue (referencia a `doc/azure-setup.md`), variables de entorno, capturas de pantalla.

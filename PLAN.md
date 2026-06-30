@@ -3,6 +3,11 @@
 ## Reglas de proceso
 - Implementar una fase completa → ejecutar sus pruebas → **pedir confirmación al usuario antes de pasar a la siguiente**.
 - Si una prueba falla, corregir en la misma fase antes de preguntar.
+- **Cobertura mínima: 80 %**. El gate de cada fase incluye:
+  ```bash
+  pytest --cov=app --cov-report=term-missing --cov-fail-under=80
+  ```
+  Los tests se escriben en cada fase junto al código que cubren.
 - Las plantillas de fases intermedias son funcionales y accesibles (a11y), no diseño final.
 - La UI final (diseño visual) la genera el plugin `/frontend-design` en la Fase 11.
 
@@ -21,14 +26,26 @@
 
 **Cómo probar**
 ```bash
-docker-compose up --build
-# Esperar a que los 3 servicios arranquen
+# Arrancar en segundo plano (-d) para dejar el terminal libre
+docker-compose up --build -d
+
+# Verificar que los 3 contenedores están running
+docker ps
+
+# Comprobar endpoint de salud
 curl http://localhost:8000/health
 # Esperado: {"status":"ok"}
+
 curl -o /dev/null -s -w "%{http_code}" http://localhost:8000/
-# Esperado: 200 o 307 (redirect a /login)
+# Esperado: 307 (redirect a /login)
+
+# Ejecutar tests con cobertura (el contenedor ya está corriendo)
+docker-compose exec app pytest --cov=app --cov-report=term-missing --cov-fail-under=80
+# Esperado: 2 tests pasados, cobertura ≥ 80 %
+
+# Ver logs si algo falla
+docker-compose logs app
 ```
-> Confirmar que los 3 contenedores aparecen en `docker ps` como `running`.
 
 ⛔ **Esperar confirmación antes de iniciar Fase 2.**
 
