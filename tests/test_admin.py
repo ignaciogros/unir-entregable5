@@ -1,11 +1,24 @@
 import io
+from unittest.mock import patch
 import pytest
 from app import init_db
+from app.models import Config
 
 
 @pytest.fixture(autouse=True)
 def seed_user(setup_test_db):
     init_db.init()
+
+
+@pytest.fixture(autouse=True)
+def clean_tables(setup_test_db):
+    from app.database import SessionLocal
+    from app.models import UploadedFile
+    s = SessionLocal()
+    s.query(Config).delete()
+    s.query(UploadedFile).delete()
+    s.commit()
+    s.close()
 
 
 @pytest.fixture
@@ -108,9 +121,39 @@ def test_delete_nonexistent_does_not_crash(auth_client):
     assert response.status_code == 303
 
 
-# --- Proceso (placeholder) ---
+# --- Proceso ---
 
-def test_process_returns_not_implemented(auth_client):
-    response = auth_client.post("/admin/process")
+def test_process_starts_background_task_and_redirects(auth_client):
+    with patch("app.ingest.process_all_pdfs"):
+        response = auth_client.post("/admin/process", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"].endswith("/admin")
+
+
+# --- Status ---
+
+def test_status_returns_json(auth_client):
+    response = auth_client.get("/admin/status")
     assert response.status_code == 200
-    assert response.json()["status"] == "not_implemented"
+    data = response.json()
+    assert "processing" in data
+    assert "active_collection" in data
+    assert "total_vectors" in data
+
+
+# --- Restaurar ---
+
+def test_restore_no_previous_still_redirects(auth_client):
+    response = auth_client.post("/admin/restore", follow_redirects=False)
+    assert response.status_code == 303
+
+
+def test_restore_swaps_collections(auth_client, db):
+    db.add(Config(key="active_collection", value="knowledge_200"))
+    db.add(Config(key="previous_collection", value="knowledge_100"))
+    db.commit()
+
+    auth_client.post("/admin/restore")
+
+    active = db.query(Config).filter_by(key="active_collection").first()
+    assert active.value == "knowledge_100"

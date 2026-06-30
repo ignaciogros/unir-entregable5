@@ -1,5 +1,21 @@
 # Plan de implementación
 
+## Estado actual — 2026-06-30
+
+**Fases completadas (código + tests):** 1, 2, 3, 4, 5, 6
+
+**Pendiente antes de continuar con Fase 7:**
+- [ ] Crear recursos Azure OpenAI siguiendo `doc/azure-setup.md` sección 1:
+  - Deployment de chat (`gpt-4o-mini`) → `AZURE_OPENAI_CHAT_DEPLOYMENT`
+  - Deployment de embeddings (`text-embedding-ada-002`) → `AZURE_OPENAI_EMBEDDING_DEPLOYMENT`
+  - Verificar con `az cognitiveservices account deployment list`
+- [ ] Actualizar `.env` con los valores reales y `docker-compose restart app`
+- [ ] Completar prueba manual de Fase 6:
+  - Subir PDF → Procesar → `GET /admin/status` devuelve `active_collection` no nulo
+  - Verificar colección en `http://localhost:6333/dashboard`
+
+---
+
 ## Reglas de proceso
 - Implementar una fase completa → ejecutar sus pruebas → **pedir confirmación al usuario antes de pasar a la siguiente**.
 - Si una prueba falla, corregir en la misma fase antes de preguntar.
@@ -242,24 +258,34 @@ docker-compose exec app python -c "from app.vector_store import get_client, crea
 - [ ] `GET /admin/status` — devuelve `{"processing": bool, "active_collection": str|null, "total_vectors": int}`
 
 **Cómo probar**
-```bash
-# 1. Subir un PDF y procesar
-# (usar un PDF pequeño con texto, no solo imágenes)
-curl -s -b /tmp/cookies.txt -F "file=@test.pdf" http://localhost:8000/admin/upload
-curl -s -b /tmp/cookies.txt -X POST http://localhost:8000/admin/process
-# Esperado: {"status":"processing"}
+```powershell
+# Tests automatizados con cobertura
+docker-compose exec app pytest --cov=app --cov-report=term-missing --cov-fail-under=80
+
+# 0. Login
+curl.exe -s -X POST "http://localhost:8000/login" -d "username=user1&password=Pass134!" -c "$env:TEMP\cookies.txt" -w "%{http_code}"
+# Esperado: 303
+
+# 1. Subir un PDF con texto real (no solo imágenes) y procesar
+curl.exe -s -b "$env:TEMP\cookies.txt" -X POST "http://localhost:8000/admin/upload" -F "file=@ruta\documento.pdf" -w "%{http_code}"
+# Esperado: 303
+curl.exe -s -b "$env:TEMP\cookies.txt" -X POST "http://localhost:8000/admin/process" -w "%{http_code}"
+# Esperado: 303 (la ingesta corre en background)
 
 # 2. Esperar ~10s y consultar estado
-curl -s -b /tmp/cookies.txt http://localhost:8000/admin/status
+curl.exe -s -b "$env:TEMP\cookies.txt" "http://localhost:8000/admin/status"
 # Esperado: {"processing":false,"active_collection":"knowledge_XXXX","total_vectors":N}
 
 # 3. Verificar colección en Qdrant
-curl -s http://localhost:6333/collections
-# Esperado: aparece la colección knowledge_XXXX
+curl.exe -s "http://localhost:6333/collections"
+# Esperado: aparece knowledge_XXXX
 
 # 4. Verificar en DB que processed=true
-docker exec -it <db_container> psql -U raguser -d ragdb \
-  -c "SELECT filename, processed FROM uploaded_files;"
+docker-compose exec db psql -U raguser -d ragdb -c "SELECT filename, processed FROM uploaded_files;"
+
+# 5. Restaurar versión anterior (solo visible en UI si hay previous_collection)
+curl.exe -s -b "$env:TEMP\cookies.txt" -X POST "http://localhost:8000/admin/restore" -w "%{http_code}"
+# Esperado: 303
 ```
 
 ⛔ **Esperar confirmación antes de iniciar Fase 7.**
