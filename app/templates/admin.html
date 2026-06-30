@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Administración — RAG Chatbot{% endblock %}
+{% block content %}
+<h1>Administración de documentos</h1>
+
+{% if error %}
+<p class="error" role="alert">{{ error }}</p>
+{% endif %}
+
+<section aria-labelledby="upload-heading">
+  <h2 id="upload-heading">Subir documento</h2>
+  <form method="post" action="/admin/upload" enctype="multipart/form-data">
+    <div class="field">
+      <label for="file">Fichero PDF</label>
+      <input
+        type="file"
+        id="file"
+        name="file"
+        accept=".pdf"
+        required
+        aria-required="true"
+        aria-describedby="file-hint"
+      >
+      <span id="file-hint" class="hint">Solo ficheros PDF. Tamaño máximo: 20 MB.</span>
+    </div>
+    <button type="submit">Subir</button>
+  </form>
+</section>
+
+<section aria-labelledby="docs-heading">
+  <h2 id="docs-heading">Documentos cargados</h2>
+
+  {% if files %}
+  <table>
+    <caption>Lista de documentos disponibles para el chatbot</caption>
+    <thead>
+      <tr>
+        <th scope="col">Nombre</th>
+        <th scope="col">Tamaño</th>
+        <th scope="col">Subido</th>
+        <th scope="col">Estado</th>
+        <th scope="col">Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for f in files %}
+      <tr>
+        <td><a href="/uploads/{{ f.filename }}">{{ f.filename }}</a></td>
+        <td>{{ (f.size_bytes / 1024) | round(1) }} KB</td>
+        <td>{{ f.uploaded_at.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td>
+          {% if f.processed %}
+          <span class="badge badge-ok">Procesado</span>
+          {% else %}
+          <span class="badge badge-pending">Pendiente</span>
+          {% endif %}
+        </td>
+        <td>
+          <form method="post" action="/admin/delete/{{ f.filename }}" style="display:inline">
+            <button type="submit" class="btn-danger" aria-label="Eliminar {{ f.filename }}">
+              Eliminar
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <form method="post" action="/admin/process" style="margin-top:1.5rem">
+    <button type="submit">Procesar documentos</button>
+  </form>
+
+  {% else %}
+  <p>No hay documentos cargados todavía.</p>
+  <button type="button" disabled aria-disabled="true">Procesar documentos</button>
+  {% endif %}
+</section>
+{% endblock %}

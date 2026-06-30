@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}RAG Chatbot{% endblock %}</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header>
+    <nav aria-label="Navegación principal">
+      <ul role="list">
+        <li><a href="/admin">Administración</a></li>
+        <li><a href="/chat">Chat</a></li>
+        <li><a href="/logout">Cerrar sesión</a></li>
+      </ul>
+    </nav>
+  </header>
+  <main id="main-content">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

@@ -88,42 +88,45 @@ SELECT username FROM users;
 **Objetivo**: login/logout funcional, todas las rutas protegidas. Plantillas accesibles.
 
 **Tareas**
-- [ ] `app/auth.py`:
+- [x] `app/auth.py`:
   - `verify_password(plain, hashed)` con bcrypt
   - `create_session(response, username)` — escribe cookie `session` firmada (itsdangerous), HttpOnly, SameSite=lax
   - `get_current_user(request)` — lee y valida cookie; devuelve username o `None`
-  - `require_auth(request)` — dependencia FastAPI; si no hay sesión lanza `RedirectResponse("/login")`
-- [ ] Rutas en `main.py`: `GET /login`, `POST /login` (verifica credenciales → crea sesión → redirige a `/chat`), `GET /logout` (borra cookie → redirige a `/login`)
-- [ ] `app/templates/base.html` — layout con `<nav>` (enlaces Admin / Chat / Cerrar sesión); roles ARIA, `lang="es"`, `<meta charset="UTF-8">`
-- [ ] `app/templates/login.html` — `<form>` con `<label for=...>` explícitos, campo usuario, campo contraseña, botón submit, mensaje de error en `role="alert"`; contraste WCAG AA
+  - Protección via `AuthMiddleware` (BaseHTTPMiddleware) en lugar de dependencia por ruta
+- [x] Rutas en `main.py`: `GET /login`, `POST /login` (303 → `/chat`), `GET /logout` (302 → `/login`)
+- [x] `app/templates/base.html` — layout con `<nav>` (enlaces Admin / Chat / Cerrar sesión); roles ARIA, `lang="es"`, `<meta charset="UTF-8">`
+- [x] `app/templates/login.html` — `<form>` con `<label for=...>` explícitos, campo usuario, campo contraseña, botón submit, mensaje de error en `role="alert"`; contraste WCAG AA
 
 **Cómo probar**
-```bash
-# 1. Sin sesión, acceso a ruta protegida redirige a login
-curl -o /dev/null -s -w "%{http_code}" http://localhost:8000/chat
+```powershell
+# Tests automatizados con cobertura
+docker-compose exec app pytest --cov=app --cov-report=term-missing --cov-fail-under=80
+
+# 1. Sin sesión → redirige a login
+curl.exe -s -o NUL -w "%{http_code}" "http://localhost:8000/chat"
 # Esperado: 307
 
-# 2. Login con credenciales incorrectas
-curl -s -X POST http://localhost:8000/login \
-  -d "username=user1&password=wrong" -c /tmp/cookies.txt
-# Esperado: permanece en /login, sin cookie de sesión
+# 2. Credenciales incorrectas → 401, sin cookie
+curl.exe -s -X POST "http://localhost:8000/login" -d "username=user1&password=wrong" -c "$env:TEMP\cookies.txt" -w "%{http_code}"
+# Esperado: 401
 
-# 3. Login correcto
-curl -s -X POST http://localhost:8000/login \
-  -d "username=${APP_USER}&password=${APP_PASSWORD}" \
-  -c /tmp/cookies.txt -L
-# Esperado: redirige a /chat (HTTP 200 o 307→200)
+# 3. Login correcto → 303 (NO usar -L: curl.exe en Windows no convierte POST→GET en 303)
+curl.exe -s -X POST "http://localhost:8000/login" -d "username=user1&password=Pass134!" -c "$env:TEMP\cookies.txt" -w "%{http_code}"
+# Esperado: 303
 
-# 4. Con cookie válida, acceso a ruta protegida
-curl -s -b /tmp/cookies.txt -o /dev/null -w "%{http_code}" http://localhost:8000/chat
+# 4. Acceder con cookie guardada
+curl.exe -s -b "$env:TEMP\cookies.txt" -o NUL -w "%{http_code}" "http://localhost:8000/chat"
 # Esperado: 200
 
-# 5. Logout borra acceso
-curl -s -b /tmp/cookies.txt http://localhost:8000/logout
-curl -s -b /tmp/cookies.txt -o /dev/null -w "%{http_code}" http://localhost:8000/chat
-# Esperado: 307 (redirige a login de nuevo)
+# 5. Logout (-c necesario para actualizar fichero con Max-Age=0)
+curl.exe -s -b "$env:TEMP\cookies.txt" -c "$env:TEMP\cookies.txt" "http://localhost:8000/logout" -w "%{http_code}"
+# Esperado: 302
+
+# 6. Tras logout → acceso denegado
+curl.exe -s -b "$env:TEMP\cookies.txt" -o NUL -w "%{http_code}" "http://localhost:8000/chat"
+# Esperado: 307
 ```
-> Verificar también en navegador: teclado solo (Tab/Enter), lectores de pantalla ven la etiqueta de cada campo.
+> Verificar también en navegador: Tab navega entre campos, Enter envía el formulario.
 
 ⛔ **Esperar confirmación antes de iniciar Fase 4.**
 
@@ -146,30 +149,46 @@ curl -s -b /tmp/cookies.txt -o /dev/null -w "%{http_code}" http://localhost:8000
   - Botón "Procesar" deshabilitado visualmente hasta que haya PDFs
 
 **Cómo probar**
-```bash
-# 1. Subir un PDF válido
-curl -s -b /tmp/cookies.txt \
-  -F "file=@ruta/a/test.pdf" \
-  http://localhost:8000/admin/upload
-# Esperado: redirect a /admin, el PDF aparece en la lista
+```powershell
+# Tests automatizados con cobertura
+docker-compose exec app pytest --cov=app --cov-report=term-missing --cov-fail-under=80
 
-# 2. Subir un archivo no-PDF (debe rechazarse)
-curl -s -b /tmp/cookies.txt \
-  -F "file=@ruta/a/archivo.txt" \
-  -o /dev/null -w "%{http_code}" http://localhost:8000/admin/upload
-# Esperado: 400 o redirect con mensaje de error
+# 0. Login para obtener cookie (prerequisito de los pasos siguientes)
+curl.exe -s -X POST "http://localhost:8000/login" -d "username=user1&password=Pass134!" -c "$env:TEMP\cookies.txt" -w "%{http_code}"
+# Esperado: 303
 
-# 3. Verificar que el archivo existe en disco
-ls uploads/
+# 1. Panel admin accesible con sesión → 200
+curl.exe -s -b "$env:TEMP\cookies.txt" -o NUL -w "%{http_code}" "http://localhost:8000/admin"
+# Esperado: 200
 
-# 4. Eliminar el PDF
-curl -s -b /tmp/cookies.txt \
-  -X POST http://localhost:8000/admin/delete/test.pdf
-# Esperado: redirect a /admin, lista vacía; archivo borrado de uploads/
+# 2. Sin sesión → redirige a login
+curl.exe -s -o NUL -w "%{http_code}" "http://localhost:8000/admin"
+# Esperado: 307
 
-# 5. Verificar acceso al panel sin sesión
-curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/admin
-# Esperado: 307 a /login
+# 3. Subir un PDF válido → 303
+# (crear un PDF mínimo primero: el fichero debe empezar por %PDF)
+curl.exe -s -b "$env:TEMP\cookies.txt" -X POST "http://localhost:8000/admin/upload" -F "file=@ruta\a\documento.pdf" -w "%{http_code}"
+# Esperado: 303
+
+# 4. Ver el PDF en el listado
+curl.exe -s -b "$env:TEMP\cookies.txt" "http://localhost:8000/admin"
+# Esperado: HTML que contiene el nombre del fichero subido
+
+# 5. Subir archivo .txt → 400
+curl.exe -s -b "$env:TEMP\cookies.txt" -X POST "http://localhost:8000/admin/upload" -F "file=@ruta\a\texto.txt" -w "%{http_code}"
+# Esperado: 400
+
+# 6. Eliminar el PDF → 303
+curl.exe -s -b "$env:TEMP\cookies.txt" -X POST "http://localhost:8000/admin/delete/documento.pdf" -w "%{http_code}"
+# Esperado: 303
+
+# 7. Panel vacío tras borrar
+curl.exe -s -b "$env:TEMP\cookies.txt" "http://localhost:8000/admin"
+# Esperado: HTML con "No hay documentos cargados todavía."
+
+# 8. Botón Procesar (placeholder)
+curl.exe -s -b "$env:TEMP\cookies.txt" -X POST "http://localhost:8000/admin/process"
+# Esperado: {"status":"not_implemented"}
 ```
 
 ⛔ **Esperar confirmación antes de iniciar Fase 5.**
