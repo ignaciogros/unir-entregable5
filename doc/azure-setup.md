@@ -72,12 +72,17 @@ az cognitiveservices account deployment create `
   --name $OPENAI_NAME `
   --resource-group $RG `
   --deployment-name $CHAT_DEP `
-  --model-name gpt-4o-mini `
-  --model-version "2024-07-18" `
+  --model-name gpt-5.4-mini `
+  --model-version "2026-03-17" `
   --model-format OpenAI `
-  --sku-name Standard `
+  --sku-name GlobalStandard `
   --sku-capacity 10
 ```
+
+> Nota: `gpt-4o-mini`/`gpt-4o` fueron retirados (03/2026). Se usa `gpt-5.4-mini` (ligero, GA).
+> La familia gpt-5 **solo admite `--sku-name GlobalStandard`** (con `Standard` da
+> `InvalidResourceProperties`). Requiere `AZURE_OPENAI_API_VERSION` reciente (≥ `2024-10-21`);
+> la `2024-02-01` no sirve para la familia gpt-5.
 
 ### Crear deployment de embeddings (AZURE_OPENAI_EMBEDDING_DEPLOYMENT)
 
@@ -86,12 +91,15 @@ az cognitiveservices account deployment create `
   --name $OPENAI_NAME `
   --resource-group $RG `
   --deployment-name $EMBED_DEP `
-  --model-name text-embedding-ada-002 `
-  --model-version "2" `
+  --model-name text-embedding-3-small `
+  --model-version "1" `
   --model-format OpenAI `
-  --sku-name Standard `
+  --sku-name GlobalStandard `
   --sku-capacity 10
 ```
+
+> Nota: en `swedencentral`, `text-embedding-3-small` tampoco admite `Standard`; usar
+> `GlobalStandard`.
 
 ### Verificar deployments
 
@@ -99,17 +107,20 @@ az cognitiveservices account deployment create `
 az cognitiveservices account deployment list `
   --name $OPENAI_NAME `
   --resource-group $RG `
+  --query "[].{name:name, model:properties.model.name, version:properties.model.version, state:properties.provisioningState}" `
   --output table
 ```
 
-Esperado: dos filas con `ProvisioningState = Succeeded`, una para `chat` y otra para `embedding`.
+Esperado: dos filas con `state = Succeeded` — `chat` (`gpt-5.4-mini`) y `embedding`
+(`text-embedding-3-small`). La tabla por defecto (`--output table` sin `--query`) solo muestra
+`Name` y `ResourceGroup`; el `--query` de arriba añade modelo, versión y estado.
 
 ### Actualizar .env con los valores obtenidos
 
 ```bash
 AZURE_OPENAI_ENDPOINT=<salida del comando show>
 AZURE_OPENAI_API_KEY=<salida del comando keys list>
-AZURE_OPENAI_API_VERSION=2024-02-01
+AZURE_OPENAI_API_VERSION=2024-10-21
 AZURE_OPENAI_CHAT_DEPLOYMENT=chat
 AZURE_OPENAI_EMBEDDING_DEPLOYMENT=embedding
 ```

@@ -88,7 +88,7 @@ AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
 AZURE_OPENAI_API_KEY=your-api-key-here
 AZURE_OPENAI_CHAT_DEPLOYMENT=your-chat-deployment-name
 AZURE_OPENAI_EMBEDDING_DEPLOYMENT=your-embedding-deployment-name
-AZURE_OPENAI_API_VERSION=2024-02-01
+AZURE_OPENAI_API_VERSION=2024-10-21
 
 # PostgreSQL
 DATABASE_URL=postgresql://raguser:ragpass@db:5432/ragdb
@@ -214,11 +214,22 @@ Fuentes:
 - La respuesta de `rag.py` devuelve `{"answer": str, "sources": [{"source": str, "page": int, "score": float}]}`
 - Si ningún chunk supera score 0.75, añadir nota visual: "⚠️ Baja confianza — respuesta puede no estar en los documentos"
 
+### Grounding by design
+
+El sistema está diseñado para que toda respuesta esté **anclada a las fuentes recuperadas**, no al conocimiento paramétrico del modelo. Principio transversal, materializado en cuatro mecanismos ya descritos arriba:
+
+1. **System prompt restrictivo** — responde EXCLUSIVAMENTE con el CONTEXTO; prohíbe conocimiento externo.
+2. **Rechazo explícito** — si la información no está en el contexto: «No encuentro información sobre eso en los documentos disponibles.»
+3. **Umbral de confianza** — si ningún chunk supera score 0.75, aviso visual «⚠️ Baja confianza».
+4. **Citas obligatorias** — cada respuesta muestra fuente + página + fiabilidad (score coseno × 100).
+
+Cualquier cambio en `rag.py` o en el prompt debe preservar estos cuatro puntos.
+
 ### Chunking de PDFs (ingest.py)
 - Parsear con `pypdf.PdfReader`
 - Dividir en chunks de 500 tokens con 50 tokens de solapamiento (aproximar por caracteres: 500 tokens ≈ 2000 chars)
 - Metadata de cada punto Qdrant: `{"source": "nombre_archivo.pdf", "page": N, "chunk_idx": K}`
-- Tamaño de vector: 1536 (text-embedding-ada-002)
+- Tamaño de vector: 1536 (text-embedding-3-small)
 
 ### Endpoint de salud (`/health`)
 ```json
@@ -235,14 +246,16 @@ Fuentes:
 
 Disparador: `push` a rama `main`
 
+Organizado en *stages* (jobs de GitHub Actions encadenados con `needs:`, cada uno arranca solo
+si el anterior pasa). Estructura tomada del pipeline de ejemplo en Azure DevOps, añadiendo `lint`:
+
 ```
-1. Checkout
-2. Login Azure (secret: AZURE_CREDENTIALS)
-3. Login ACR (az acr login --name $ACR_NAME)
-4. Build: docker build -t $ACR_LOGIN_SERVER/rag-chatbot:$GITHUB_SHA
-5. Push: docker push (tag :$SHA y :latest)
-6. Deploy: az containerapp update --name ... --image ...
-7. Smoke test: curl https://<app-url>/health → status 200
+jobs:
+  lint            → ruff check . && ruff format --check .
+  test            → needs: lint            · pytest --cov=app --cov-fail-under=80
+  build-and-push  → needs: test            · az acr login · docker build · push :$SHA y :latest
+  deploy          → needs: build-and-push  · az containerapp secret set · update --image :$SHA
+  smoke-test      → needs: deploy          · curl https://<app-url>/health → 200 {"status":"ok"}
 ```
 
 Variables necesarias en GitHub Actions secrets:
@@ -268,6 +281,7 @@ docker-compose up --build app
 
 - **Fases**: implementar una fase completa, luego ejecutar sus pruebas, luego preguntar al usuario antes de pasar a la siguiente. No se salta ningún gate.
 - **Cobertura de tests**: mínimo **80 %** medido con `pytest-cov`. Los tests se escriben en cada fase junto al código. El gate de cada fase incluye pasar `pytest --cov=app --cov-report=term-missing --cov-fail-under=80`. El pipeline CI/CD también lo aplica.
+- **Guía de estilo (obligado cumplimiento)**: detallada en `doc/style-guide.md`. **4 espacios por defecto**; **2 espacios por consenso** en `.yml`/`.yaml`, `.html`/Jinja2, `.css`, `.js`. Nunca tabuladores. Regla codificada en `.editorconfig`. Linter y formateador: **`ruff`** (config en `pyproject.toml`). Comando de lint: `scripts/lint.ps1` (equivale a `ruff check . && ruff format --check .`). El gate de cada fase y el *stage* `lint` del pipeline deben pasar sin errores.
 - **UI**: diseñar con a11y en mente desde el principio (roles ARIA, etiquetas `<label>`, contraste suficiente, navegación por teclado, atributos `alt`). La UI final (diseño visual, tipografía, paleta) la genera el plugin `/frontend-design` — las plantillas de las fases intermedias son funcionales y accesibles, no necesariamente bonitas.
 - **Documentación**:
   - `README.md` en español, completo, como proyecto final: descripción, arquitectura, requisitos, guía de ejecución local, guía de despliegue (referencia a `doc/azure-setup.md`), variables de entorno, capturas de pantalla.

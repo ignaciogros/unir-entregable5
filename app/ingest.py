@@ -56,11 +56,11 @@ def chunk_text(pages: list[dict], filename: str) -> list[dict]:
 def embed_text(text: str) -> list[float]:
     client = openai.AzureOpenAI(
         api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-        api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-01"),
+        api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21"),
         azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
     )
     response = client.embeddings.create(
-        model=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-ada-002"),
+        model=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-3-small"),
         input=text,
     )
     return response.data[0].embedding

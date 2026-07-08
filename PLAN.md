@@ -5,9 +5,12 @@
 **Fases completadas (código + tests):** 1, 2, 3, 4, 5, 6
 
 **Pendiente antes de continuar con Fase 7:**
+- [ ] Introducir el tooling de calidad (ver «Guía de estilo y linter»):
+  - `.editorconfig`, config de `ruff` en `pyproject.toml`, `doc/style-guide.md`, `scripts/lint.ps1`
+  - Pasar `ruff check .` sobre el código existente (Fases 1–6) y corregir lo que marque
 - [ ] Crear recursos Azure OpenAI siguiendo `doc/azure-setup.md` sección 1:
-  - Deployment de chat (`gpt-4o-mini`) → `AZURE_OPENAI_CHAT_DEPLOYMENT`
-  - Deployment de embeddings (`text-embedding-ada-002`) → `AZURE_OPENAI_EMBEDDING_DEPLOYMENT`
+  - Deployment de chat (`gpt-5.4-mini`, v `2026-03-17`) → `AZURE_OPENAI_CHAT_DEPLOYMENT`
+  - Deployment de embeddings (`text-embedding-3-small`, v `1`, 1536 dims) → `AZURE_OPENAI_EMBEDDING_DEPLOYMENT`
   - Verificar con `az cognitiveservices account deployment list`
 - [ ] Actualizar `.env` con los valores reales y `docker-compose restart app`
 - [ ] Completar prueba manual de Fase 6:
@@ -24,8 +27,38 @@
   pytest --cov=app --cov-report=term-missing --cov-fail-under=80
   ```
   Los tests se escriben en cada fase junto al código que cubren.
+- **Lint sin errores**. El gate de cada fase incluye también:
+  ```bash
+  ruff check . && ruff format --check .
+  ```
 - Las plantillas de fases intermedias son funcionales y accesibles (a11y), no diseño final.
 - La UI final (diseño visual) la genera el plugin `/frontend-design` en la Fase 11.
+
+---
+
+## Guía de estilo y linter (obligado cumplimiento)
+
+Guía completa en `doc/style-guide.md`. Resumen aplicable a todo el repo:
+
+- **Indentación**: **4 espacios por defecto** (Python, Dockerfile, Markdown anidado).
+  **2 espacios por consenso** en: `.yml`/`.yaml`, `.html`/plantillas Jinja2, `.css`, `.js`.
+  Nunca tabuladores. Se codifica en `.editorconfig` (fuente de verdad para editores y linter).
+- **Reglas comunes**: sin espacios al final de línea, salto de línea final, codificación UTF-8.
+- **Python**: `ruff` como linter y formateador. Config en `pyproject.toml`
+  (`line-length = 100`, `target-version = "py311"`; reglas `E`, `F`, `I`, `W`, `UP`, `B`).
+  `snake_case` para funciones/variables, `PascalCase` para clases.
+
+**Comando de lint** (debe existir y pasar en cada fase y en el pipeline):
+
+```powershell
+# Envoltura conveniente
+scripts\lint.ps1
+
+# Equivalente directo (multiplataforma, el que corre el CI)
+ruff check . ; if ($?) { ruff format --check . }
+```
+
+Autoarreglo local: `ruff check --fix . ; ruff format .`
 
 ---
 
@@ -425,15 +458,24 @@ docker images | grep rag-chatbot
 - [ ] Documentar todos los pasos en `doc/azure-setup.md`
 
 **Tareas (automatizadas)**
-- [ ] `.github/workflows/deploy.yml`:
+- [ ] `.github/workflows/deploy.yml` — *stages* encadenados con `needs:` (equivalente
+  GitHub Actions a los *stages* de Azure DevOps del proyecto de ejemplo). Cada *job* solo
+  arranca si el anterior termina en verde:
   ```
   on: push to main
+
   jobs:
-    test      → pytest (sin servicios externos)
-    build     → docker build + push a ACR con tag :$SHA y :latest
-    deploy    → az containerapp secret set + az containerapp update --image :$SHA
-    smoke     → curl https://<url>/health → {"status":"ok"}
+    lint            → ruff check . && ruff format --check .
+    test            → needs: lint    · pytest --cov=app --cov-fail-under=80
+    build-and-push  → needs: test    · docker build + push a ACR (:$SHA y :latest)
+    deploy          → needs: build-and-push
+                        · az containerapp secret set  (APP_USER, APP_PASSWORD, SECRET_KEY, ...)
+                        · az containerapp update --image :$SHA
+    smoke-test      → needs: deploy  · curl https://<url>/health con reintentos → {"status":"ok"}
   ```
+  - Orden y responsabilidad de cada *stage* calcados del ejemplo `tmp/.../azure-pipelines.yml`
+    (`Validate → BuildAndPush → Deploy → ValidateDeployment`), añadiendo `lint` como primer *stage*.
+  - Nombres de *jobs* en inglés, en minúscula-con-guiones.
 
 **Cómo probar**
 ```bash
@@ -482,6 +524,12 @@ docker-compose up --build
 
 ### Fase 12 — Documentación y validación final de rúbrica
 **Objetivo**: documentación completa y verificación de los 6 criterios.
+
+**Decisión pendiente** (preguntar al usuario al llegar aquí):
+- [ ] **Makefile como punto de entrada único** (`make lint/test/up/deploy`) — *wrapper* fino sobre
+  los comandos reales. Valorado: útil para la rúbrica, pero `make` no es nativo en Windows.
+  Enfoque preferido si se aprueba: Makefile + `scripts/*.ps1` en paralelo. **No es artefacto de
+  Azure** (allí solo corre la imagen; su equivalente es `az containerapp update` en el pipeline).
 
 **Tareas**
 - [ ] `README.md` en español:
