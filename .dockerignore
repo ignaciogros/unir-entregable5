@@ -1,0 +1,35 @@
+# Secretos y datos locales — nunca en la imagen
+.env
+.env.*
+!.env.example
+uploads/
+
+# Tests (se montan como volumen en dev; en CI corren en el runner)
+tests/
+
+# Artefactos de Python
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Control de versiones y CI
+.git/
+.github/
+.gitignore
+
+# Documentación y planificación (no necesarias en runtime)
+doc/
+plan/
+tmp/
+*.md
+!requirements.txt
+
+# Editor / SO
+.vscode/
+.idea/
+.DS_Store
