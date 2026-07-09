@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.auth import AuthMiddleware, create_session, delete_session, get_current_user, verify_password
 from app.database import get_db
 from app.admin import router as admin_router
+from app.chat import router as chat_router
 
 
 @asynccontextmanager
@@ -24,6 +25,7 @@ app.add_middleware(AuthMiddleware)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.mount("/uploads", StaticFiles(directory="uploads", check_dir=False), name="uploads")
 app.include_router(admin_router)
+app.include_router(chat_router)
 
 templates = Jinja2Templates(directory="app/templates")
 
@@ -74,9 +76,3 @@ def logout():
     response = RedirectResponse(url="/login", status_code=302)
     delete_session(response)
     return response
-
-
-# Placeholder — se sustituye en Fase 7
-@app.get("/chat")
-def chat_placeholder(request: Request):
-    return templates.TemplateResponse(request, "chat.html")

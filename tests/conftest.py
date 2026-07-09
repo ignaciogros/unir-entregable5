@@ -24,7 +24,7 @@ def _make_test_engine():
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_db():
-    import app.models  # registra los modelos en Base antes de create_all
+    import app.models  # noqa: F401  (registra los modelos en Base antes de create_all)
     import app.database as db_mod
     import app.init_db as init_mod
 

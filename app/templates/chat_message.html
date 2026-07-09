@@ -1,0 +1,28 @@
+<div class="msg msg-user">
+  <span class="msg-role">Tú</span>
+  <p class="msg-body">{{ ex.q }}</p>
+</div>
+<div class="msg msg-assistant">
+  <span class="msg-role">Asistente</span>
+  <p class="msg-body">{{ ex.a }}</p>
+
+  {% if ex.low_confidence %}
+  <p class="low-confidence" role="status">
+    ⚠️ Baja confianza — respuesta puede no estar en los documentos
+  </p>
+  {% endif %}
+
+  {% if ex.sources %}
+  <details class="sources">
+    <summary>Fuentes</summary>
+    <ul role="list">
+      {% for s in ex.sources %}
+      <li>
+        📄 <a href="/uploads/{{ s.source }}">{{ s.source }}</a>
+        <span class="source-meta">• pág. {{ s.page }} • Fiabilidad: {{ (s.score * 100) | round | int }}%</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+</div>

@@ -2,5 +2,45 @@
 {% block title %}Chat — RAG Chatbot{% endblock %}
 {% block content %}
 <h1>Chat</h1>
-<p>Disponible en la Fase 7.</p>
+
+<section aria-labelledby="chat-heading" class="chat">
+  <h2 id="chat-heading" class="visually-hidden">Conversación</h2>
+
+  <div id="conversation"
+       class="conversation"
+       role="log"
+       aria-live="polite"
+       aria-label="Historial de conversación">
+    {% for ex in history %}
+    <div class="msg msg-user">
+      <span class="msg-role">Tú</span>
+      <p class="msg-body">{{ ex.q }}</p>
+    </div>
+    <div class="msg msg-assistant">
+      <span class="msg-role">Asistente</span>
+      <p class="msg-body">{{ ex.a }}</p>
+    </div>
+    {% endfor %}
+  </div>
+
+  <form id="chat-form"
+        class="chat-form"
+        hx-post="/chat/ask"
+        hx-target="#conversation"
+        hx-swap="beforeend"
+        hx-disabled-elt="find button"
+        hx-on::after-request="this.reset(); this.querySelector('input').focus()">
+    <div class="field">
+      <label for="question">Tu pregunta</label>
+      <input type="text"
+             id="question"
+             name="question"
+             required
+             aria-required="true"
+             autocomplete="off"
+             placeholder="Escribe tu pregunta sobre los documentos...">
+    </div>
+    <button type="submit">Enviar</button>
+  </form>
+</section>
 {% endblock %}
