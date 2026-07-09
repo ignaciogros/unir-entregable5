@@ -8,21 +8,32 @@
 
   {% if ex.low_confidence %}
   <p class="low-confidence" role="status">
-    ⚠️ Baja confianza — respuesta puede no estar en los documentos
+    ⚠️ Baja confianza — la respuesta puede no estar en los documentos.
   </p>
   {% endif %}
 
   {% if ex.sources %}
-  <details class="sources">
-    <summary>Fuentes</summary>
-    <ul role="list">
+  <div class="sources">
+    <p class="sources__eyebrow">Fuentes</p>
+    <ol class="sources__list" role="list">
       {% for s in ex.sources %}
-      <li>
-        📄 <a href="/uploads/{{ s.source }}">{{ s.source }}</a>
-        <span class="source-meta">• pág. {{ s.page }} • Fiabilidad: {{ (s.score * 100) | round | int }}%</span>
+      {% set pct = (s.score * 100) | round | int %}
+      <li class="source">
+        <div class="source__head">
+          <span class="source__doc">📄 <a href="/uploads/{{ s.source }}">{{ s.source }}</a></span>
+          <span class="source__page">pág. {{ s.page }}</span>
+        </div>
+        <div class="reliability">
+          <span class="reliability__label">Fiabilidad</span>
+          <span class="reliability__track" aria-hidden="true">
+            <span class="reliability__fill {% if pct >= 75 %}is-high{% elif pct >= 50 %}is-mid{% else %}is-low{% endif %}"
+                  style="width: {{ pct }}%"></span>
+          </span>
+          <span class="reliability__value">{{ pct }}%</span>
+        </div>
       </li>
       {% endfor %}
-    </ul>
-  </details>
+    </ol>
+  </div>
   {% endif %}
 </div>

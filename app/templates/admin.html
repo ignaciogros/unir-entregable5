@@ -1,10 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Administración — RAG Chatbot{% endblock %}
 {% block content %}
+<p class="eyebrow">Base de conocimiento</p>
 <h1>Administración de documentos</h1>
+<p class="lead">Sube los PDF, procésalos para indexarlos y gestiona la versión activa.</p>
 
 {% if error %}
-<p class="error" role="alert">{{ error }}</p>
+<p class="alert alert--error" role="alert">{{ error }}</p>
 {% endif %}
 
 {% if processing %}
@@ -15,11 +17,14 @@
      hx-on:htmx:after-request="if(!JSON.parse(event.detail.xhr.responseText).processing) location.reload()"
      role="status"
      aria-live="polite">
-  <p class="info-banner">Procesando documentos, espere...</p>
+  <p class="banner banner--info">
+    <span class="banner__spinner" aria-hidden="true"></span>
+    Procesando documentos, espere…
+  </p>
 </div>
 {% endif %}
 
-<section aria-labelledby="upload-heading">
+<section class="panel" aria-labelledby="upload-heading">
   <h2 id="upload-heading">Subir documento</h2>
   <form method="post" action="/admin/upload" enctype="multipart/form-data">
     <div class="field">
@@ -35,51 +40,53 @@
       >
       <span id="file-hint" class="hint">Solo ficheros PDF. Tamaño máximo: 20 MB.</span>
     </div>
-    <button type="submit">Subir</button>
+    <button type="submit">Subir documento</button>
   </form>
 </section>
 
-<section aria-labelledby="docs-heading">
+<section class="panel" aria-labelledby="docs-heading">
   <h2 id="docs-heading">Documentos cargados</h2>
 
   {% if files %}
-  <table>
-    <caption>Lista de documentos disponibles para el chatbot</caption>
-    <thead>
-      <tr>
-        <th scope="col">Nombre</th>
-        <th scope="col">Tamaño</th>
-        <th scope="col">Subido</th>
-        <th scope="col">Estado</th>
-        <th scope="col">Acciones</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for f in files %}
-      <tr>
-        <td><a href="/uploads/{{ f.filename }}">{{ f.filename }}</a></td>
-        <td>{{ (f.size_bytes / 1024) | round(1) }} KB</td>
-        <td>{{ f.uploaded_at.strftime('%d/%m/%Y %H:%M') }}</td>
-        <td>
-          {% if f.processed %}
-          <span class="badge badge-ok">Procesado</span>
-          {% else %}
-          <span class="badge badge-pending">Pendiente</span>
-          {% endif %}
-        </td>
-        <td>
-          <form method="post" action="/admin/delete/{{ f.filename }}" style="display:inline">
-            <button type="submit" class="btn-danger" aria-label="Eliminar {{ f.filename }}">
-              Eliminar
-            </button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="table-wrap">
+    <table>
+      <caption>Lista de documentos disponibles para el chatbot</caption>
+      <thead>
+        <tr>
+          <th scope="col">Nombre</th>
+          <th scope="col">Tamaño</th>
+          <th scope="col">Subido</th>
+          <th scope="col">Estado</th>
+          <th scope="col">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in files %}
+        <tr>
+          <td><a href="/uploads/{{ f.filename }}">{{ f.filename }}</a></td>
+          <td><span class="num">{{ (f.size_bytes / 1024) | round(1) }} KB</span></td>
+          <td><span class="num">{{ f.uploaded_at.strftime('%d/%m/%Y %H:%M') }}</span></td>
+          <td>
+            {% if f.processed %}
+            <span class="badge badge--ok">Procesado</span>
+            {% else %}
+            <span class="badge badge--pending">Pendiente</span>
+            {% endif %}
+          </td>
+          <td>
+            <form method="post" action="/admin/delete/{{ f.filename }}">
+              <button type="submit" class="btn--danger" aria-label="Eliminar {{ f.filename }}">
+                Eliminar
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 
-  <div class="action-row" style="margin-top:1.5rem;display:flex;gap:1rem;flex-wrap:wrap">
+  <div class="toolbar">
     <form method="post" action="/admin/process">
       <button type="submit" {% if processing %}disabled aria-disabled="true"{% endif %}>
         Procesar documentos
@@ -88,7 +95,7 @@
 
     {% if has_previous %}
     <form method="post" action="/admin/restore">
-      <button type="submit" class="btn-secondary">
+      <button type="submit" class="btn--secondary">
         Restaurar versión anterior
       </button>
     </form>
@@ -96,8 +103,7 @@
   </div>
 
   {% else %}
-  <p>No hay documentos cargados todavía.</p>
-  <button type="button" disabled aria-disabled="true">Procesar documentos</button>
+  <p class="empty">No hay documentos cargados todavía.</p>
   {% endif %}
 </section>
 {% endblock %}

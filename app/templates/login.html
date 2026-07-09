@@ -4,15 +4,28 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Iniciar sesión — RAG Chatbot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body class="login-page">
   <main id="main-content">
     <section class="login-card" aria-labelledby="login-heading">
+      <div class="login-card__brand">
+        <svg width="30" height="30" viewBox="0 0 28 28" aria-hidden="true" focusable="false">
+          <rect width="28" height="28" rx="7" fill="var(--accent)"></rect>
+          <path d="M8 9.5h9M8 14h12M8 18.5h7" stroke="#EAF3F2" stroke-width="1.6" stroke-linecap="round"></path>
+          <circle cx="20.5" cy="18.5" r="1.8" fill="#EAF3F2"></circle>
+        </svg>
+        <span class="brand__text"><strong>RAG</strong> Chatbot</span>
+      </div>
+
       <h1 id="login-heading">Iniciar sesión</h1>
+      <p class="login-card__lead">Consulta tus documentos con respuestas citadas.</p>
 
       {% if error %}
-      <p class="error" role="alert">{{ error }}</p>
+      <p class="alert alert--error" role="alert">{{ error }}</p>
       {% endif %}
 
       <form method="post" action="/login" novalidate>
@@ -38,7 +51,7 @@
             aria-required="true"
           >
         </div>
-        <button type="submit">Entrar</button>
+        <button type="submit" class="btn btn--block">Entrar</button>
       </form>
     </section>
   </main>

@@ -2,19 +2,36 @@
 
 ## Estado actual — 2026-07-09
 
-**Fases completadas (código + tests, confirmadas por el usuario):** 1, 2, 3, 4, 5, 6, 7, 8, 9
+**Fases completadas y confirmadas:** 1‑10 (código + tests + despliegue Azure verificado end-to-end).
 
-**Fase 10 (CI/CD + Azure):** parte de código HECHA (`.github/workflows/deploy.yml` + `doc/azure-setup.md`).
-Pendiente la parte manual del usuario (crear recursos Azure + Azure DB for PostgreSQL + Qdrant Cloud, secrets+variables de
-GitHub, primer push). Ver Fase 10 más abajo.
+**Fase 10 (CI/CD + Azure): ✅ COMPLETADA.** Pipeline en verde (lint→test→build→deploy→smoke-test),
+app desplegada en Azure Container Apps, `/health` responde `"status":"ok"`. Recursos: RG
+`rg-entregable5`, ACR `acrentregable5`, Container App `rag-chatbot` en `env-entregable5`
+(swedencentral), SP `sp-github-entregable5`, **Azure Database for PostgreSQL Flexible Server**,
+**Qdrant Cloud**. Secrets/variables cargados en GitHub.
+
+**Fase 11 (UI final): 🟡 APLICADA, pendiente de validación visual del usuario.** Ver sección abajo.
+
+### 👉 Retomar aquí en la próxima sesión
+1. **Validar Fase 11** en el navegador (`docker-compose up -d` → `http://localhost:8000`, Ctrl+F5):
+   flujo login→admin→chat, navegación por teclado, Lighthouse a11y >90, HTMX OK. Ajustar diseño según
+   feedback o confirmar y cerrar la fase.
+2. **Commitear lo pendiente** (el usuario ejecuta Git; no lo hace el asistente): quedaba sin commitear
+   el bloque de Fase 10 (`.github/`, docs) + toda la Fase 11 (templates + `styles.css`) + updates de
+   `CLAUDE.md`/`PLAN.md`. Nota: el push a `main` **redispara el pipeline y redespliega**.
+3. **Fase 12** (documentación + validación de rúbrica): ver sección; incluye decisión pendiente sobre
+   Makefile.
 
 **Notas de estado:**
-- Tooling de calidad: `ruff` se añadió a `requirements.txt` (>=0.6.0) y el gate `ruff check .` +
-  `ruff format --check .` pasa. Los ficheros `.editorconfig`, `doc/style-guide.md` y `scripts/lint.ps1`
-  descritos en CLAUDE.md **aún no existen** (opcional; ruff usa defaults, línea 88).
-- Azure OpenAI (deployments `chat` + `embedding`) creado y funcionando; prueba manual de Fase 6 e
-  ingesta real validadas.
-- El chat RAG (Fase 7) responde con fuentes y fiabilidad; grounding verificado.
+- Git: el asistente NO ejecuta comandos de Git ni de shell; los ejecuta el usuario. Comandos de prueba
+  en PowerShell, una línea, `Invoke-RestMethod`/`curl.exe`.
+- Infra prod: Azure DB for PostgreSQL (no Neon) + Qdrant Cloud. Razonado en CLAUDE.md; sin referencias
+  a Neon en el repo.
+- Tooling de calidad: `ruff` en `requirements.txt` (>=0.6.0); gate `ruff check .` + `ruff format --check .`
+  pasa. `.editorconfig`, `doc/style-guide.md`, `scripts/lint.ps1` y config `[tool.ruff]` en pyproject
+  **aún no existen** (ruff usa defaults, línea 88). Comandos reales de lint documentados en CLAUDE.md
+  (dentro y fuera del contenedor).
+- Azure OpenAI (`chat` + `embedding`) operativo; ingesta real validada; grounding del chat verificado.
 
 ---
 
@@ -461,19 +478,17 @@ docker images | grep rag-chatbot
 
 ---
 
-### Fase 10 — CI/CD y despliegue Azure  🟡 CÓDIGO HECHO · parte manual PENDIENTE
+### Fase 10 — CI/CD y despliegue Azure  ✅ COMPLETADA (2026-07-09, verificada)
 **Objetivo**: push a main despliega automáticamente en Azure Container Apps.
 
-> **Estado (2026-07-09):**
-> - ✅ `.github/workflows/deploy.yml` escrito (5 stages: lint→test→build-and-push→deploy→smoke-test;
->   trigger `push` a main + `workflow_dispatch`). Incluye `az containerapp registry set` con creds
->   admin del ACR para el pull de imagen privada.
-> - ✅ `doc/azure-setup.md` actualizado (secret `QDRANT_URL` añadido + sección 6 «Pipeline CI/CD y
->   primer despliegue»).
-> - ⏳ **Pendiente del usuario:** crear recursos Azure (RG, ACR, Container App, service principal),
->   Azure Database for PostgreSQL (Flexible Server) y Qdrant Cloud; cargar secrets+variables en GitHub; primer push.
-> - ⚠️ Hasta que Postgres/Qdrant de prod existan, `smoke-test` fallará con `"status":"degraded"`
->   (esperado, no es bug).
+> **Estado:** pipeline completo en verde (lint→test→build-and-push→deploy→smoke-test) y app desplegada
+> en Azure Container Apps. `/health` responde `"status":"ok"` (postgres + qdrant `connected`).
+> - Recursos: RG `rg-entregable5`, ACR `acrentregable5`, Container App `rag-chatbot` en
+>   `env-entregable5` (swedencentral), SP `sp-github-entregable5`, Azure DB for PostgreSQL Flexible
+>   Server, Qdrant Cloud. Secrets+variables en GitHub cargados.
+> - `.github/workflows/deploy.yml` con `az containerapp registry set` (creds admin ACR) para el pull.
+> - Gotcha: el `deploy` fallaba con `containerapp 'rag-chatbot' does not exist` hasta ejecutar el paso
+>   manual 3 de `azure-setup.md` (crear entorno + Container App con imagen placeholder).
 
 **Tareas (manual, una sola vez)**
 - [ ] Crear Resource Group: `az group create --name rg-entregable5 --location westeurope`
@@ -526,12 +541,26 @@ az containerapp logs show \
 
 ---
 
-### Fase 11 — UI final (plugin de diseño)
+### Fase 11 — UI final (plugin de diseño)  🟡 APLICADA · pendiente validación visual
 **Objetivo**: aplicar diseño visual definitivo sobre las plantillas funcionales existentes.
 
+> **Hecho (2026-07-09):** rediseño aplicado con dirección **sobrio académico/profesional, tema claro**.
+> - Sistema de diseño: paleta papel frío `#f6f7f9` + tinta pizarra `#17212b` + acento **teal `#1f6f78`**
+>   (evita clichés cream/terracota/broadsheet); tipografía **IBM Plex** (Serif títulos · Sans cuerpo ·
+>   Mono datos) vía Google Fonts; semánticos con contraste AA.
+> - **Firma:** aparato de citas en el chat = cada fuente como referencia con **barra de fiabilidad**
+>   (color por umbral 75/50) y `%`/página en mono. Materializa el *grounding by design*.
+> - Reescritos: `app/static/styles.css` (completo), `base.html` (header + wordmark + skip-link + nav con
+>   `aria-current` vía `request.url.path`), `login.html`, `admin.html`, `chat.html`, `chat_message.html`.
+> - HTMX preservado (chat `hx-post`/`beforeend`, polling de admin). Templates/CSS montados como volumen
+>   → basta refrescar el navegador, sin rebuild.
+>
+> **Pendiente:** validación visual del usuario (feedback de color/tipografía/densidad) + checklist de
+> abajo. Tras confirmar, marcar ✅.
+
 **Tareas**
-- [ ] Invocar `/frontend-design` con las plantillas actuales como base
-- [ ] Aplicar resultado a `base.html`, `login.html`, `admin.html`, `chat.html`
+- [x] Invocar `/frontend-design` con las plantillas actuales como base
+- [x] Aplicar resultado a `base.html`, `login.html`, `admin.html`, `chat.html` (+ `chat_message.html`)
 - [ ] Verificar a11y tras el rediseño: contraste, foco visible, `aria-*` intactos
 - [ ] Verificar que HTMX sigue funcionando tras cambios de clases/estructura
 

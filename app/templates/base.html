@@ -4,20 +4,34 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}RAG Chatbot{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/styles.css">
   <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
 </head>
 <body>
-  <header>
-    <nav aria-label="Navegación principal">
-      <ul role="list">
-        <li><a href="/admin">Administración</a></li>
-        <li><a href="/chat">Chat</a></li>
-        <li><a href="/logout">Cerrar sesión</a></li>
-      </ul>
-    </nav>
+  <a class="skip-link" href="#main-content">Saltar al contenido</a>
+  <header class="site-header">
+    <div class="site-header__inner">
+      <a class="brand" href="/chat" aria-label="RAG Chatbot, inicio">
+        <svg class="brand__mark" width="28" height="28" viewBox="0 0 28 28" aria-hidden="true" focusable="false">
+          <rect width="28" height="28" rx="7" fill="var(--accent)"></rect>
+          <path d="M8 9.5h9M8 14h12M8 18.5h7" stroke="#EAF3F2" stroke-width="1.6" stroke-linecap="round"></path>
+          <circle cx="20.5" cy="18.5" r="1.8" fill="#EAF3F2"></circle>
+        </svg>
+        <span class="brand__text"><strong>RAG</strong> Chatbot</span>
+      </a>
+      <nav class="site-nav" aria-label="Navegación principal">
+        <ul role="list">
+          <li><a href="/chat" {% if request.url.path.startswith('/chat') %}aria-current="page"{% endif %}>Chat</a></li>
+          <li><a href="/admin" {% if request.url.path.startswith('/admin') %}aria-current="page"{% endif %}>Administración</a></li>
+          <li><a class="site-nav__logout" href="/logout">Cerrar sesión</a></li>
+        </ul>
+      </nav>
+    </div>
   </header>
-  <main id="main-content">
+  <main id="main-content" class="site-main">
     {% block content %}{% endblock %}
   </main>
 </body>
