@@ -26,9 +26,13 @@ def test_health_all_connected():
 
 
 def test_health_reports_active_collection_and_vectors():
-    with patch("app.main.vector_store.get_client") as mock_client, \
-         patch("app.main.vector_store.get_active_collection", return_value="knowledge_42"), \
-         patch("app.main.vector_store.get_total_vectors", return_value=137):
+    with (
+        patch("app.main.vector_store.get_client") as mock_client,
+        patch(
+            "app.main.vector_store.get_active_collection", return_value="knowledge_42"
+        ),
+        patch("app.main.vector_store.get_total_vectors", return_value=137),
+    ):
         mock_client.return_value.get_collections.return_value = MagicMock()
         response = client.get("/health")
     body = response.json()

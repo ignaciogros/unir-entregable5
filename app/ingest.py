@@ -42,12 +42,14 @@ def chunk_text(pages: list[dict], filename: str) -> list[dict]:
         while start < len(text):
             chunk = text[start : start + CHUNK_SIZE]
             if chunk.strip():
-                chunks.append({
-                    "text": chunk,
-                    "page": page,
-                    "source": filename,
-                    "chunk_idx": chunk_idx,
-                })
+                chunks.append(
+                    {
+                        "text": chunk,
+                        "page": page,
+                        "source": filename,
+                        "chunk_idx": chunk_idx,
+                    }
+                )
                 chunk_idx += 1
             start += CHUNK_SIZE - CHUNK_OVERLAP
     return chunks

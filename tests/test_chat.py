@@ -14,6 +14,7 @@ def seed_user(setup_test_db):
 @pytest.fixture(autouse=True)
 def clean_tables(setup_test_db):
     from app.database import SessionLocal
+
     s = SessionLocal()
     s.query(Config).delete()
     s.query(UploadedFile).delete()
@@ -29,6 +30,7 @@ def auth_client(client):
 
 # --- Acceso ---
 
+
 def test_chat_requires_auth(client):
     response = client.get("/chat", follow_redirects=False)
     assert response.status_code in (302, 307)
@@ -43,6 +45,7 @@ def test_chat_page_renders(auth_client):
 
 
 # --- Preguntar ---
+
 
 def test_ask_returns_answer_and_sources(auth_client):
     result = {
@@ -68,6 +71,7 @@ def test_ask_shows_low_confidence_warning(auth_client):
 
 def test_ask_refusal_has_no_sources_block(auth_client):
     from app.rag import REFUSAL
+
     result = {"answer": REFUSAL, "sources": [], "low_confidence": True}
     with patch("app.chat.rag.answer_question", return_value=result):
         response = auth_client.post("/chat/ask", data={"question": "algo"})

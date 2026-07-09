@@ -8,7 +8,13 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app import vector_store
-from app.auth import AuthMiddleware, create_session, delete_session, get_current_user, verify_password
+from app.auth import (
+    AuthMiddleware,
+    create_session,
+    delete_session,
+    get_current_user,
+    verify_password,
+)
 from app.database import get_db
 from app.admin import router as admin_router
 from app.chat import router as chat_router
@@ -17,6 +23,7 @@ from app.chat import router as chat_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from app import init_db
+
     os.makedirs("uploads", exist_ok=True)
     init_db.init()
     yield

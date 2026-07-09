@@ -275,7 +275,45 @@ docker-compose logs -f app
 
 # Reiniciar solo la app (sin tocar db/qdrant)
 docker-compose up --build app
+
+# Lint + formato (mismo gate que el stage `lint` del pipeline)
+# --no-deps evita esperar a los healthchecks de db/qdrant
+docker-compose run --rm --no-deps app ruff check .
+docker-compose run --rm --no-deps app ruff format --check .
+
+# Autoarreglo local (lint + formato)
+docker-compose run --rm --no-deps app ruff check . --fix
+docker-compose run --rm --no-deps app ruff format .
 ```
+
+### Ejecutar ruff fuera del contenedor (en el host)
+
+`ruff` es análisis estático: no necesita `.env`, ni la base de datos, ni levantar servicios. Se puede
+instalar en el host y ejecutar directamente sobre la carpeta del repo. Útil para lintar rápido sin
+Docker.
+
+```powershell
+# Instalar ruff (una vez). Opción A: instalador oficial, sin Python
+powershell -c "irm https://astral.sh/ruff/install.ps1 | iex"
+# Opción B: con pip (paridad con el CI, que usa ruff>=0.6.0)
+pip install "ruff>=0.6.0"
+
+# Abrir una terminal nueva (para refrescar el PATH) y verificar
+ruff --version
+
+# Ejecutar desde la RAÍZ del repo (donde está pyproject.toml)
+ruff check .
+ruff format --check .
+
+# Autoarreglo
+ruff check . --fix
+ruff format .
+```
+
+> Nota: `ruff` se ejecuta dentro del contenedor (está en `requirements.txt`). Los ficheros
+> `scripts/lint.ps1`, `doc/style-guide.md`, `.editorconfig` y la config `[tool.ruff]` en
+> `pyproject.toml` descritos más abajo **aún no existen**; hasta crearlos, ruff usa sus defaults
+> (línea 88, reglas `E4/E7/E9/F`). El gate del pipeline usa los comandos de arriba.
 
 ## Reglas de trabajo (leer antes de implementar)
 

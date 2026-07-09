@@ -45,6 +45,7 @@ def setup_test_db():
 @pytest.fixture
 def db(setup_test_db):
     from app.database import SessionLocal
+
     session = SessionLocal()
     yield session
     session.rollback()
@@ -55,4 +56,5 @@ def db(setup_test_db):
 def client():
     from app.main import app
     from fastapi.testclient import TestClient
+
     return TestClient(app)

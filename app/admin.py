@@ -16,22 +16,36 @@ templates = Jinja2Templates(directory="app/templates")
 
 
 def _error(request: Request, db: Session, message: str):
-    files = db.query(UploadedFileModel).order_by(UploadedFileModel.uploaded_at.desc()).all()
+    files = (
+        db.query(UploadedFileModel).order_by(UploadedFileModel.uploaded_at.desc()).all()
+    )
     return templates.TemplateResponse(
-        request, "admin.html", {"files": files, "error": message, "processing": False, "has_previous": False}, status_code=400
+        request,
+        "admin.html",
+        {"files": files, "error": message, "processing": False, "has_previous": False},
+        status_code=400,
     )
 
 
 @router.get("")
 def admin_page(request: Request, db: Session = Depends(get_db)):
     from app import ingest
-    files = db.query(UploadedFileModel).order_by(UploadedFileModel.uploaded_at.desc()).all()
-    has_previous = db.query(Config).filter_by(key="previous_collection").first() is not None
-    return templates.TemplateResponse(request, "admin.html", {
-        "files": files,
-        "processing": ingest.is_processing(),
-        "has_previous": has_previous,
-    })
+
+    files = (
+        db.query(UploadedFileModel).order_by(UploadedFileModel.uploaded_at.desc()).all()
+    )
+    has_previous = (
+        db.query(Config).filter_by(key="previous_collection").first() is not None
+    )
+    return templates.TemplateResponse(
+        request,
+        "admin.html",
+        {
+            "files": files,
+            "processing": ingest.is_processing(),
+            "has_previous": has_previous,
+        },
+    )
 
 
 @router.post("/upload")
@@ -103,6 +117,7 @@ def process_pdfs(background_tasks: BackgroundTasks):
 @router.get("/status")
 def admin_status(db: Session = Depends(get_db)):
     from app import ingest
+
     collection = vs.get_active_collection(db)
     total = 0
     if collection:

@@ -14,6 +14,7 @@ def seed_user(setup_test_db):
 def clean_tables(setup_test_db):
     from app.database import SessionLocal
     from app.models import UploadedFile
+
     s = SessionLocal()
     s.query(Config).delete()
     s.query(UploadedFile).delete()
@@ -29,6 +30,7 @@ def auth_client(client):
 
 # --- Acceso sin autenticación ---
 
+
 def test_admin_requires_auth(client):
     response = client.get("/admin", follow_redirects=False)
     assert response.status_code in (302, 307)
@@ -36,6 +38,7 @@ def test_admin_requires_auth(client):
 
 
 # --- Renderizado ---
+
 
 def test_admin_page_renders(auth_client):
     response = auth_client.get("/admin")
@@ -49,6 +52,7 @@ def test_admin_shows_no_files_message(auth_client):
 
 
 # --- Subida de PDF ---
+
 
 def test_upload_valid_pdf(auth_client):
     pdf = b"%PDF-1.4\n%%EOF"
@@ -85,7 +89,9 @@ def test_upload_fake_pdf_extension_rejected(auth_client):
     """Fichero con extensión .pdf pero sin magic bytes %PDF."""
     response = auth_client.post(
         "/admin/upload",
-        files={"file": ("trampa.pdf", io.BytesIO(b"no es un pdf real"), "application/pdf")},
+        files={
+            "file": ("trampa.pdf", io.BytesIO(b"no es un pdf real"), "application/pdf")
+        },
         follow_redirects=False,
     )
     assert response.status_code == 400
@@ -103,6 +109,7 @@ def test_upload_too_large_rejected(auth_client):
 
 
 # --- Borrado ---
+
 
 def test_delete_pdf(auth_client):
     pdf = b"%PDF-1.4\n%%EOF"
@@ -123,6 +130,7 @@ def test_delete_nonexistent_does_not_crash(auth_client):
 
 # --- Proceso ---
 
+
 def test_process_starts_background_task_and_redirects(auth_client):
     with patch("app.ingest.process_all_pdfs"):
         response = auth_client.post("/admin/process", follow_redirects=False)
@@ -131,6 +139,7 @@ def test_process_starts_background_task_and_redirects(auth_client):
 
 
 # --- Status ---
+
 
 def test_status_returns_json(auth_client):
     response = auth_client.get("/admin/status")
@@ -142,6 +151,7 @@ def test_status_returns_json(auth_client):
 
 
 # --- Restaurar ---
+
 
 def test_restore_no_previous_still_redirects(auth_client):
     response = auth_client.post("/admin/restore", follow_redirects=False)

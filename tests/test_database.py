@@ -6,6 +6,7 @@ from app.models import User
 
 def test_init_creates_tables(setup_test_db):
     from app.database import engine
+
     tables = sa_inspect(engine).get_table_names()
     assert "users" in tables
     assert "config" in tables
@@ -27,6 +28,7 @@ def test_init_is_idempotent(db):
 
 def test_get_db():
     from app.database import get_db
+
     gen = get_db()
     session = next(gen)
     assert session is not None

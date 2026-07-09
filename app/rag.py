@@ -39,10 +39,12 @@ def _build_messages(context: str, question: str, history: list[dict]) -> list[di
     for exchange in history[-MAX_HISTORY:]:
         messages.append({"role": "user", "content": exchange["q"]})
         messages.append({"role": "assistant", "content": exchange["a"]})
-    messages.append({
-        "role": "user",
-        "content": f"CONTEXTO:\n{context}\n\nPREGUNTA: {question}",
-    })
+    messages.append(
+        {
+            "role": "user",
+            "content": f"CONTEXTO:\n{context}\n\nPREGUNTA: {question}",
+        }
+    )
     return messages
 
 
