@@ -1,0 +1,134 @@
+name: CI/CD — RAG Chatbot
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+      - name: Ruff check
+        run: ruff check .
+      - name: Ruff format check
+        run: ruff format --check .
+
+  test:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+      - name: Pytest con cobertura
+        run: pytest tests/ -v --cov=app --cov-report=term-missing --cov-fail-under=80
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login en Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Login en ACR
+        run: az acr login --name ${{ vars.ACR_NAME }}
+      - name: Build y push de la imagen
+        run: |
+          IMAGE="${{ vars.ACR_LOGIN_SERVER }}/rag-chatbot"
+          docker build -t "$IMAGE:${{ github.sha }}" -t "$IMAGE:latest" .
+          docker push "$IMAGE:${{ github.sha }}"
+          docker push "$IMAGE:latest"
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login en Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Configurar acceso al registry
+        run: |
+          ACR_PASSWORD=$(az acr credential show \
+            --name ${{ vars.ACR_NAME }} \
+            --query "passwords[0].value" -o tsv)
+          az containerapp registry set \
+            --name ${{ vars.CONTAINER_APP_NAME }} \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --server ${{ vars.ACR_LOGIN_SERVER }} \
+            --username ${{ vars.ACR_NAME }} \
+            --password "$ACR_PASSWORD"
+
+      - name: Inyectar secretos en Container Apps
+        run: |
+          az containerapp secret set \
+            --name ${{ vars.CONTAINER_APP_NAME }} \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --secrets \
+              "app-user=${{ secrets.APP_USER }}" \
+              "app-password=${{ secrets.APP_PASSWORD }}" \
+              "secret-key=${{ secrets.SECRET_KEY }}" \
+              "azure-openai-api-key=${{ secrets.AZURE_OPENAI_API_KEY }}" \
+              "qdrant-url=${{ secrets.QDRANT_URL }}" \
+              "qdrant-api-key=${{ secrets.QDRANT_API_KEY }}" \
+              "database-url=${{ secrets.DATABASE_URL }}"
+
+      - name: Desplegar nueva imagen
+        run: |
+          az containerapp update \
+            --name ${{ vars.CONTAINER_APP_NAME }} \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --image "${{ vars.ACR_LOGIN_SERVER }}/rag-chatbot:${{ github.sha }}" \
+            --set-env-vars \
+              "APP_USER=secretref:app-user" \
+              "APP_PASSWORD=secretref:app-password" \
+              "SECRET_KEY=secretref:secret-key" \
+              "AZURE_OPENAI_API_KEY=secretref:azure-openai-api-key" \
+              "QDRANT_URL=secretref:qdrant-url" \
+              "QDRANT_API_KEY=secretref:qdrant-api-key" \
+              "DATABASE_URL=secretref:database-url" \
+              "AZURE_OPENAI_ENDPOINT=${{ vars.AZURE_OPENAI_ENDPOINT }}" \
+              "AZURE_OPENAI_CHAT_DEPLOYMENT=${{ vars.AZURE_OPENAI_CHAT_DEPLOYMENT }}" \
+              "AZURE_OPENAI_EMBEDDING_DEPLOYMENT=${{ vars.AZURE_OPENAI_EMBEDDING_DEPLOYMENT }}" \
+              "AZURE_OPENAI_API_VERSION=2024-10-21"
+
+  smoke-test:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login en Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Comprobar /health
+        run: |
+          FQDN=$(az containerapp show \
+            --name ${{ vars.CONTAINER_APP_NAME }} \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          URL="https://$FQDN/health"
+          echo "Smoke test → $URL"
+          for i in $(seq 1 10); do
+            code=$(curl -s -o /tmp/health.json -w "%{http_code}" "$URL" || true)
+            echo "Intento $i → HTTP $code"
+            if [ "$code" = "200" ] && grep -q '"status":"ok"' /tmp/health.json; then
+              echo "Health OK:"; cat /tmp/health.json
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "Smoke test fallido. Última respuesta:"; cat /tmp/health.json || true
+          exit 1

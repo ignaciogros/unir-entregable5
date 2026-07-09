@@ -1,21 +1,20 @@
 # Plan de implementación
 
-## Estado actual — 2026-06-30
+## Estado actual — 2026-07-09
 
-**Fases completadas (código + tests):** 1, 2, 3, 4, 5, 6
+**Fases completadas (código + tests, confirmadas por el usuario):** 1, 2, 3, 4, 5, 6, 7, 8, 9
 
-**Pendiente antes de continuar con Fase 7:**
-- [ ] Introducir el tooling de calidad (ver «Guía de estilo y linter»):
-  - `.editorconfig`, config de `ruff` en `pyproject.toml`, `doc/style-guide.md`, `scripts/lint.ps1`
-  - Pasar `ruff check .` sobre el código existente (Fases 1–6) y corregir lo que marque
-- [ ] Crear recursos Azure OpenAI siguiendo `doc/azure-setup.md` sección 1:
-  - Deployment de chat (`gpt-5.4-mini`, v `2026-03-17`) → `AZURE_OPENAI_CHAT_DEPLOYMENT`
-  - Deployment de embeddings (`text-embedding-3-small`, v `1`, 1536 dims) → `AZURE_OPENAI_EMBEDDING_DEPLOYMENT`
-  - Verificar con `az cognitiveservices account deployment list`
-- [ ] Actualizar `.env` con los valores reales y `docker-compose restart app`
-- [ ] Completar prueba manual de Fase 6:
-  - Subir PDF → Procesar → `GET /admin/status` devuelve `active_collection` no nulo
-  - Verificar colección en `http://localhost:6333/dashboard`
+**Fase 10 (CI/CD + Azure):** parte de código HECHA (`.github/workflows/deploy.yml` + `doc/azure-setup.md`).
+Pendiente la parte manual del usuario (crear recursos Azure + Azure DB for PostgreSQL + Qdrant Cloud, secrets+variables de
+GitHub, primer push). Ver Fase 10 más abajo.
+
+**Notas de estado:**
+- Tooling de calidad: `ruff` se añadió a `requirements.txt` (>=0.6.0) y el gate `ruff check .` +
+  `ruff format --check .` pasa. Los ficheros `.editorconfig`, `doc/style-guide.md` y `scripts/lint.ps1`
+  descritos en CLAUDE.md **aún no existen** (opcional; ruff usa defaults, línea 88).
+- Azure OpenAI (deployments `chat` + `embedding`) creado y funcionando; prueba manual de Fase 6 e
+  ingesta real validadas.
+- El chat RAG (Fase 7) responde con fuentes y fiabilidad; grounding verificado.
 
 ---
 
@@ -325,8 +324,14 @@ curl.exe -s -b "$env:TEMP\cookies.txt" -X POST "http://localhost:8000/admin/rest
 
 ---
 
-### Fase 7 — Pipeline RAG y chat
+### Fase 7 — Pipeline RAG y chat  ✅ COMPLETADA (2026-07-09, confirmada)
 **Objetivo**: chatbot funcional con memoria de conversación y citas de fuentes.
+
+> **Desviaciones respecto al plan:**
+> - Historial en **cookie firmada dedicada** `chat_history` (itsdangerous), no dentro de la sesión de auth — funcionalmente equivalente, mantiene la cookie de sesión intacta.
+> - **No** se implementó `POST /chat/clear` (no imprescindible; el historial caduca con la cookie). Pendiente si se quiere botón de "limpiar conversación".
+> - La lista de mensajes usa `<div role="log" aria-live="polite">` en vez de `<ol><li>`; a11y equivalente.
+> - `rag.py` expone `answer_question(db, question, history)` (no `ask(...)`); devuelve además `low_confidence`.
 
 **Tareas**
 - [ ] `app/rag.py`:
@@ -376,8 +381,13 @@ curl -s -b /tmp/cookies.txt \
 
 ---
 
-### Fase 8 — Tests automatizados
+### Fase 8 — Tests automatizados  ✅ COMPLETADA (2026-07-09, confirmada)
 **Objetivo**: suite de tests que pasa en CI sin servicios externos levantados.
+
+> **Nota:** el endpoint `/health` se enriqueció (status `ok`/`degraded`, `postgres`, `qdrant`,
+> `active_collection`, `total_vectors`, con degradación elegante) y `test_health.py` se reescribió con
+> Qdrant mockeado. La suite completa (auth, admin, rag, chat, ingest, vector_store, database, health)
+> pasa con cobertura ≥ 80 %.
 
 **Tareas**
 - [ ] `tests/conftest.py` — fixtures: app de test con SQLite en memoria, Qdrant y Azure OpenAI mockeados
@@ -411,8 +421,13 @@ docker-compose exec app pytest tests/ -v
 
 ---
 
-### Fase 9 — Dockerfile y compose de producción
+### Fase 9 — Dockerfile y compose de producción  ✅ COMPLETADA (2026-07-09, confirmada)
 **Objetivo**: imagen optimizada y orquestación lista para CI/CD.
+
+> **Verificado:** Dockerfile multi-stage (builder venv `/opt/venv` + runtime slim, usuario no-root
+> `appuser`), `.dockerignore` creado, compose con healthchecks (db `pg_isready`, qdrant TCP 6333) y
+> `depends_on: condition: service_healthy`. Los 3 contenedores arrancan *healthy*; imagen **380 MB**
+> (< 500 MB).
 
 **Tareas**
 - [ ] `Dockerfile` — build multi-stage: stage `builder` (instala deps) + stage `runtime` (copia solo lo necesario, usuario no-root `appuser`)
@@ -446,8 +461,19 @@ docker images | grep rag-chatbot
 
 ---
 
-### Fase 10 — CI/CD y despliegue Azure
+### Fase 10 — CI/CD y despliegue Azure  🟡 CÓDIGO HECHO · parte manual PENDIENTE
 **Objetivo**: push a main despliega automáticamente en Azure Container Apps.
+
+> **Estado (2026-07-09):**
+> - ✅ `.github/workflows/deploy.yml` escrito (5 stages: lint→test→build-and-push→deploy→smoke-test;
+>   trigger `push` a main + `workflow_dispatch`). Incluye `az containerapp registry set` con creds
+>   admin del ACR para el pull de imagen privada.
+> - ✅ `doc/azure-setup.md` actualizado (secret `QDRANT_URL` añadido + sección 6 «Pipeline CI/CD y
+>   primer despliegue»).
+> - ⏳ **Pendiente del usuario:** crear recursos Azure (RG, ACR, Container App, service principal),
+>   Azure Database for PostgreSQL (Flexible Server) y Qdrant Cloud; cargar secrets+variables en GitHub; primer push.
+> - ⚠️ Hasta que Postgres/Qdrant de prod existan, `smoke-test` fallará con `"status":"degraded"`
+>   (esperado, no es bug).
 
 **Tareas (manual, una sola vez)**
 - [ ] Crear Resource Group: `az group create --name rg-entregable5 --location westeurope`
@@ -455,10 +481,10 @@ docker images | grep rag-chatbot
 - [ ] Crear Container Apps environment: `az containerapp env create ...`
 - [ ] Crear Container App inicial con imagen placeholder
 - [ ] Configurar GitHub Actions secrets y variables (ver lista en CLAUDE.md)
-- [ ] Documentar todos los pasos en `doc/azure-setup.md`
+- [x] Documentar todos los pasos en `doc/azure-setup.md`
 
 **Tareas (automatizadas)**
-- [ ] `.github/workflows/deploy.yml` — *stages* encadenados con `needs:` (equivalente
+- [x] `.github/workflows/deploy.yml` — *stages* encadenados con `needs:` (equivalente
   GitHub Actions a los *stages* de Azure DevOps del proyecto de ejemplo). Cada *job* solo
   arranca si el anterior termina en verde:
   ```

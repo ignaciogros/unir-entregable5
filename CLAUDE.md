@@ -26,7 +26,7 @@ Entregable académico UNIR — cubre el 100% de la rúbrica del Entregable 5.
 - **Azure Container Registry**: almacena la imagen Docker de `app`
 - **Azure Container Apps**: ejecuta `app`
 - **Qdrant Cloud** (free tier, 1 GB): base vectorial externa, sin coste adicional
-- **PostgreSQL externo** (Neon.tech free tier o variable configurable): DB de prod
+- **Azure Database for PostgreSQL** (Flexible Server, Burstable B1ms): DB de prod, configurable vía `DATABASE_URL`
 
 ## Stack técnico
 - Python 3.11
@@ -294,7 +294,7 @@ docker-compose up --build app
 - **HTMX en lugar de React**: el `docker-compose.yml` queda con 3 servicios limpios (no 4), el Dockerfile es uno solo, y la experiencia de usuario es buena para el alcance del proyecto.
 - **itsdangerous para sesiones**: evita dependencia de Redis o almacenamiento de sesión en DB. La cookie firmada guarda el user_id y el historial de chat (< 4 KB).
 - **Qdrant Cloud gratuito en prod**: evita coste de volúmenes persistentes en Azure Container Apps y simplifica la arquitectura cloud.
-- **Neon/Supabase free tier en prod**: evita el coste de Azure Database for PostgreSQL. Configurable vía `DATABASE_URL`.
+- **Azure Database for PostgreSQL en prod**: Postgres gestionado dentro de Azure (Flexible Server B1ms). A diferencia de Qdrant, Azure ofrece Postgres gestionado de primera clase, así que la BD relacional se mantiene en Azure por coherencia con el entregable. Configurable vía `DATABASE_URL` (la rúbrica no exige la BD en Azure, pero se elige así con suscripción de pago).
 - **Dos colecciones máximo**: suficiente para la funcionalidad de restauración pedida. Más copias no aportan valor en un proyecto académico.
 
 ## Ampliación futura (modo quiz)

@@ -152,6 +152,20 @@ az acr show `
 
 ## 3. Azure Container Apps — Fase 10
 
+### Registrar proveedores requeridos (una vez por suscripción)
+
+Container Apps necesita un backend de Log Analytics (`Microsoft.OperationalInsights`) y el proveedor
+`Microsoft.App`. Si no están registrados, `az containerapp env create` fallará pidiéndolos.
+Regístralos antes (idempotente, `--wait` bloquea hasta terminar, ~1‑2 min):
+
+```powershell
+az provider register -n Microsoft.OperationalInsights --wait
+az provider register -n Microsoft.App --wait
+az provider register -n Microsoft.ContainerService --wait
+```
+
+### Crear entorno y app
+
 ```powershell
 $APP_ENV  = "env-entregable5"
 $APP_NAME = "rag-chatbot"
@@ -192,6 +206,158 @@ Copiar el JSON completo → GitHub: **Settings → Secrets and variables → Act
 
 ---
 
+## Servicios externos de producción: Qdrant Cloud — Fase 10
+
+La base vectorial de producción **no** es un contenedor: se usa **Qdrant Cloud** (free tier, 1 GB) para
+evitar volúmenes persistentes en Azure Container Apps. De aquí salen los secrets `QDRANT_URL` y
+`QDRANT_API_KEY`.
+
+### Obtener `QDRANT_URL`
+
+1. Entrar en **https://cloud.qdrant.io** e iniciar sesión (se puede con la cuenta de GitHub/Google).
+2. **Create Cluster** → seleccionar **Free tier** (1 GB), elegir proveedor/región (p. ej. AWS
+   `eu-central-1`). Esperar a que el clúster quede en estado **Healthy** (~1‑2 min).
+3. Abrir el clúster → pestaña **Overview / Cluster Details**. Copiar el **Endpoint**, con esta forma:
+   ```
+   https://xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.eu-central-1-0.aws.cloud.qdrant.io
+   ```
+4. El valor del secret `QDRANT_URL` es ese endpoint **con el puerto REST `:6333`**:
+   ```
+   QDRANT_URL=https://xxxxxxxx-....aws.cloud.qdrant.io:6333
+   ```
+   > El `qdrant-client` de la app usa la API REST en el **6333**. El 6334 (gRPC) no se usa aquí.
+
+### Obtener `QDRANT_API_KEY`
+
+En el mismo clúster → **Data Access Control** (o **API Keys**) → **Create** → copiar la clave generada.
+Ese valor es el secret `QDRANT_API_KEY`.
+
+### Verificar (opcional)
+
+```powershell
+curl.exe -s "https://TU-ENDPOINT:6333/healthz" -H "api-key: TU_API_KEY"
+```
+
+Debe devolver `healthz check passed`.
+
+> **Local vs producción:** en el `.env` local `QDRANT_URL=http://qdrant:6333` (nombre del servicio de
+> Docker Compose) y `QDRANT_API_KEY` vacío. Los valores de Qdrant Cloud van **solo** en los secrets de
+> GitHub; no se tocan en el `.env` local.
+
+---
+
+## Base de datos de producción: Azure Database for PostgreSQL — Fase 10
+
+A diferencia de Qdrant, Azure sí ofrece Postgres gestionado (**Flexible Server**), así que la BD
+relacional de producción se mantiene **dentro de Azure**. De aquí sale el secret `DATABASE_URL`.
+
+### Registrar el proveedor (una vez por suscripción)
+
+Si la suscripción no lo tiene registrado, `flexible-server create` falla con
+`MissingSubscriptionRegistration`. Regístralo antes:
+
+```powershell
+az provider register -n Microsoft.DBforPostgreSQL --wait
+```
+
+### Definir variables
+
+```powershell
+$PG_SERVER   = "pg-entregable5"          # nombre global único, en minúsculas
+$PG_ADMIN    = "ragadmin"
+$PG_PASSWORD = "<contraseña-fuerte>"      # sin caracteres @ : / # ? (o habrá que URL-encodearlos)
+$PG_DB       = "ragdb"
+```
+
+### Crear el servidor Flexible Server
+
+```powershell
+az postgres flexible-server create `
+  --resource-group $RG `
+  --name $PG_SERVER `
+  --location $LOCATION `
+  --admin-user $PG_ADMIN `
+  --admin-password $PG_PASSWORD `
+  --tier Burstable `
+  --sku-name Standard_B1ms `
+  --storage-size 32 `
+  --version 16 `
+  --public-access 0.0.0.0 `
+  --yes
+```
+
+> `--public-access 0.0.0.0` crea la regla especial que **permite el acceso desde servicios de Azure**
+> (necesario para que Container Apps alcance la BD). No abre el servidor a Internet.
+> `Standard_B1ms` (Burstable) es el SKU más barato (~12‑15 €/mes); ajústalo si necesitas más.
+
+### Crear la base de datos
+
+```powershell
+az postgres flexible-server db create `
+  --resource-group $RG `
+  --server-name $PG_SERVER `
+  --name $PG_DB
+```
+
+### Construir `DATABASE_URL`
+
+El host es `<PG_SERVER>.postgres.database.azure.com`. El valor del secret es:
+
+```
+DATABASE_URL=postgresql://ragadmin:<PG_PASSWORD>@pg-entregable5.postgres.database.azure.com:5432/ragdb?sslmode=require
+```
+
+Notas:
+- Flexible Server usa **usuario plano** (`ragadmin`), no el `usuario@servidor` del antiguo Single Server.
+- **`?sslmode=require`** obligatorio (Flexible Server exige TLS).
+- Si la contraseña lleva caracteres reservados de URL (`@ : / # ? %`), URL-encódéalos en la cadena.
+- No hace falta migración: al arrancar, `init_db.init()` crea las tablas y siembra el usuario.
+
+### (Opcional) Abrir tu IP para probar con psql
+
+Crea una regla de firewall que permite conectar tu IP pública al Postgres de Azure, solo para
+inspeccionar la BD desde tu máquina (psql/DBeaver). **Si no vas a conectarte tú directamente a la BD
+de Azure, puedes saltarte este paso.**
+
+Obtén tu IP pública y créala como regla (el servidor va en `--server-name`; el nombre de la regla
+en `--name`):
+
+```powershell
+$MYIP = Invoke-RestMethod -Uri https://api.ipify.org
+
+az postgres flexible-server firewall-rule create `
+  --resource-group $RG `
+  --server-name $PG_SERVER `
+  --name allow-mi-ip `
+  --start-ip-address $MYIP `
+  --end-ip-address $MYIP
+```
+
+> El `.env` local **no** cambia: sigue con `postgresql://raguser:ragpass@db:5432/ragdb` (contenedor).
+
+---
+
+## Generar `SECRET_KEY` — Fase 10
+
+Firma las cookies de sesión (`itsdangerous`). Aleatoria, ≥ 32 caracteres, **estable** (si cambia,
+invalida las sesiones activas). Generarla con un RNG criptográfico:
+
+```powershell
+$b = New-Object byte[] 48
+[System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b)
+[Convert]::ToBase64String($b)
+```
+
+Alternativa con Python del contenedor:
+
+```powershell
+docker-compose run --rm --no-deps app python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+La salida es el valor del secret `SECRET_KEY`. Solo para producción; en local ya hay un valor en `.env`.
+
+---
+
 ## 5. Secrets y variables de GitHub Actions — Fase 10
 
 **Secrets** (Settings → Secrets):
@@ -200,8 +366,9 @@ Copiar el JSON completo → GitHub: **Settings → Secrets and variables → Act
 |-------------------------|-------------------------------------|
 | `AZURE_CREDENTIALS`     | JSON del service principal          |
 | `AZURE_OPENAI_API_KEY`  | Paso 1 (keys list)                  |
+| `QDRANT_URL`            | Qdrant Cloud → cluster → endpoint (https://xxx.cloud.qdrant.io:6333) |
 | `QDRANT_API_KEY`        | Qdrant Cloud → cluster → API Keys   |
-| `DATABASE_URL`          | Neon.tech → connection string       |
+| `DATABASE_URL`          | Azure Database for PostgreSQL → connection string (ver sección arriba) |
 | `SECRET_KEY`            | cadena aleatoria ≥ 32 caracteres    |
 | `APP_USER`              | usuario del chatbot en producción   |
 | `APP_PASSWORD`          | contraseña del chatbot en producción|
@@ -217,3 +384,35 @@ Copiar el JSON completo → GitHub: **Settings → Secrets and variables → Act
 | `AZURE_OPENAI_ENDPOINT`           | salida de `az cognitiveservices account show` |
 | `AZURE_OPENAI_CHAT_DEPLOYMENT`    | `chat`                         |
 | `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` | `embedding`                  |
+
+---
+
+## 6. Pipeline CI/CD y primer despliegue — Fase 10
+
+El workflow `.github/workflows/deploy.yml` se dispara con cada `push` a `main`
+(también manualmente desde **Actions → Run workflow**, gracias a `workflow_dispatch`).
+
+Stages encadenados (cada uno solo arranca si el anterior pasa):
+
+| Stage            | Qué hace |
+|------------------|----------|
+| `lint`           | `ruff check .` + `ruff format --check .` |
+| `test`           | `pytest --cov=app --cov-fail-under=80` (SQLite en memoria, sin servicios externos) |
+| `build-and-push` | `az acr login` → `docker build` → push `:$SHA` y `:latest` a ACR |
+| `deploy`         | configura registry + `az containerapp secret set` + `az containerapp update --image :$SHA` |
+| `smoke-test`     | `GET https://<fqdn>/health` hasta obtener `200 {"status":"ok"}` (10 reintentos) |
+
+**Requisitos previos al primer push exitoso:**
+
+1. Los recursos de los pasos 1–4 creados (RG, OpenAI + deployments, ACR, Container App, service principal).
+2. **Qdrant Cloud** y **Azure Database for PostgreSQL** creados, con sus valores en los secrets `QDRANT_URL`, `QDRANT_API_KEY`, `DATABASE_URL`.
+3. Todos los **secrets** y **variables** del paso 5 configurados en GitHub.
+
+> El `smoke-test` exige `"status":"ok"`, lo que implica que **Postgres y Qdrant de producción
+> respondan**. Si aún no existen, el pipeline llegará hasta `deploy` pero fallará en `smoke-test`
+> (respuesta `"status":"degraded"`). Es el comportamiento esperado hasta completar el punto 2.
+
+**Nota sobre el pull de imagen:** el paso `deploy` ejecuta `az containerapp registry set` con las
+credenciales admin del ACR (`admin-enabled true` en el paso 2) para que Container Apps pueda
+descargar la imagen privada. La Container App del paso 3 se crea con una imagen *helloworld*
+temporal; el primer `deploy` la sustituye por `rag-chatbot:$SHA`.
