@@ -13,8 +13,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Instalar dependencias
-        run: pip install -r requirements.txt
+      - name: Instalar ruff
+        run: pip install "ruff>=0.6.0"
       - name: Ruff check
         run: ruff check .
       - name: Ruff format check
@@ -44,10 +44,71 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
       - name: Login en ACR
         run: az acr login --name ${{ vars.ACR_NAME }}
-      - name: Build y push de la imagen
+
+      - name: Build de la imagen
         run: |
           IMAGE="${{ vars.ACR_LOGIN_SERVER }}/rag-chatbot"
           docker build -t "$IMAGE:${{ github.sha }}" -t "$IMAGE:latest" .
+
+      # La imagen se prueba antes de publicarla: se levanta contra un Postgres y un
+      # Qdrant efímeros y se exige que /health responda "ok" (no "degraded"). Valida
+      # de una vez el Dockerfile, las dependencias, el CMD y la conexión a la base de datos.
+      - name: Smoke test de la imagen
+        run: |
+          IMAGE="${{ vars.ACR_LOGIN_SERVER }}/rag-chatbot:${{ github.sha }}"
+          docker network create ci-net
+
+          docker run -d --name ci-db --network ci-net \
+            -e POSTGRES_USER=raguser \
+            -e POSTGRES_PASSWORD=ragpass \
+            -e POSTGRES_DB=ragdb \
+            postgres:16-alpine
+
+          docker run -d --name ci-qdrant --network ci-net qdrant/qdrant:latest
+
+          echo "Esperando a Postgres..."
+          for i in $(seq 1 30); do
+            if docker exec ci-db pg_isready -U raguser -d ragdb >/dev/null 2>&1; then
+              echo "Postgres listo"
+              break
+            fi
+            sleep 2
+          done
+
+          docker run -d --name ci-app --network ci-net -p 8000:8000 \
+            -e DATABASE_URL="postgresql://raguser:ragpass@ci-db:5432/ragdb" \
+            -e QDRANT_URL="http://ci-qdrant:6333" \
+            -e SECRET_KEY="ci-smoke-test-not-a-real-secret" \
+            -e APP_USER="ci" \
+            -e APP_PASSWORD="ci" \
+            "$IMAGE"
+
+          echo "Comprobando /health de la imagen..."
+          for i in $(seq 1 20); do
+            code=$(curl -s -o /tmp/image-health.json -w "%{http_code}" http://localhost:8000/health || true)
+            echo "Intento $i → HTTP $code"
+            if [ "$code" = "200" ] && grep -q '"status":"ok"' /tmp/image-health.json; then
+              echo "Imagen validada:"; cat /tmp/image-health.json
+              exit 0
+            fi
+            sleep 3
+          done
+
+          echo "La imagen no superó el smoke test. Última respuesta:"
+          cat /tmp/image-health.json 2>/dev/null || echo "(sin respuesta)"
+          echo "--- Logs del contenedor ---"
+          docker logs ci-app
+          exit 1
+
+      - name: Limpiar contenedores del smoke test
+        if: always()
+        run: |
+          docker rm -f ci-app ci-qdrant ci-db >/dev/null 2>&1 || true
+          docker network rm ci-net >/dev/null 2>&1 || true
+
+      - name: Push de la imagen a ACR
+        run: |
+          IMAGE="${{ vars.ACR_LOGIN_SERVER }}/rag-chatbot"
           docker push "$IMAGE:${{ github.sha }}"
           docker push "$IMAGE:latest"
 

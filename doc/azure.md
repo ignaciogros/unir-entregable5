@@ -1,5 +1,6 @@
 # Configuración de Azure
 
+Guía paso a paso para crear la infraestructura desde cero y dejar el pipeline CI/CD operativo.
 Todos los comandos utilizan **PowerShell** y **Azure CLI**.
 
 ## Iniciar sesión
@@ -131,7 +132,7 @@ docker-compose restart app
 
 ---
 
-## 2. Azure Container Registry — Fase 10
+## 2. Azure Container Registry
 
 ```powershell
 $ACR_NAME = "acrentregable5"
@@ -150,7 +151,7 @@ az acr show `
 
 ---
 
-## 3. Azure Container Apps — Fase 10
+## 3. Azure Container Apps
 
 ### Registrar proveedores requeridos (una vez por suscripción)
 
@@ -184,9 +185,21 @@ az containerapp create `
   --ingress external
 ```
 
+> Este paso es **obligatorio antes del primer push**. El job `deploy` ejecuta
+> `az containerapp update`, que falla con `containerapp 'rag-chatbot' does not exist` si la
+> Container App no se ha creado antes con una imagen placeholder.
+
+### Obtener la URL pública
+
+```powershell
+az containerapp show --name $APP_NAME --resource-group $RG --query properties.configuration.ingress.fqdn --output tsv
+```
+
+Devuelve el FQDN sin esquema. La URL pública es `https://` + ese valor.
+
 ---
 
-## 4. Service principal para GitHub Actions — Fase 10
+## 4. Service principal para GitHub Actions
 
 ```powershell
 $SUBSCRIPTION_ID = az account show --query id --output tsv
@@ -200,13 +213,19 @@ az ad sp create-for-rbac `
 
 Copiar el JSON completo → GitHub: **Settings → Secrets and variables → Actions → New repository secret**
 
-| Secret              | Valor                        |
-|---------------------|------------------------------|
+| Secret              | Valor                              |
+|---------------------|------------------------------------|
 | `AZURE_CREDENTIALS` | JSON completo del comando anterior |
+
+> **Cuentas Azure for Students:** `az ad sp create-for-rbac` requiere permisos de creación de
+> aplicaciones en Microsoft Entra ID, que algunas suscripciones educativas tienen bloqueados. Este
+> proyecto se ha desplegado sobre una **suscripción de pago**, donde la operación está permitida.
+> Si tu suscripción lo bloquea, la alternativa es autenticar el pipeline con las credenciales de
+> ACR y un *bearer token* contra la API REST de Azure.
 
 ---
 
-## Servicios externos de producción: Qdrant Cloud — Fase 10
+## Servicios externos de producción: Qdrant Cloud
 
 La base vectorial de producción **no** es un contenedor: se usa **Qdrant Cloud** (free tier, 1 GB) para
 evitar volúmenes persistentes en Azure Container Apps. De aquí salen los secrets `QDRANT_URL` y
@@ -246,7 +265,7 @@ Debe devolver `healthz check passed`.
 
 ---
 
-## Base de datos de producción: Azure Database for PostgreSQL — Fase 10
+## Base de datos de producción: Azure Database for PostgreSQL
 
 A diferencia de Qdrant, Azure sí ofrece Postgres gestionado (**Flexible Server**), así que la BD
 relacional de producción se mantiene **dentro de Azure**. De aquí sale el secret `DATABASE_URL`.
@@ -337,7 +356,7 @@ az postgres flexible-server firewall-rule create `
 
 ---
 
-## Generar `SECRET_KEY` — Fase 10
+## Generar `SECRET_KEY`
 
 Firma las cookies de sesión (`itsdangerous`). Aleatoria, ≥ 32 caracteres, **estable** (si cambia,
 invalida las sesiones activas). Generarla con un RNG criptográfico:
@@ -358,7 +377,7 @@ La salida es el valor del secret `SECRET_KEY`. Solo para producción; en local y
 
 ---
 
-## 5. Secrets y variables de GitHub Actions — Fase 10
+## 5. Secrets y variables de GitHub Actions
 
 **Secrets** (Settings → Secrets):
 
@@ -387,20 +406,11 @@ La salida es el valor del secret `SECRET_KEY`. Solo para producción; en local y
 
 ---
 
-## 6. Pipeline CI/CD y primer despliegue — Fase 10
+## 6. Pipeline CI/CD y primer despliegue
 
 El workflow `.github/workflows/deploy.yml` se dispara con cada `push` a `main`
 (también manualmente desde **Actions → Run workflow**, gracias a `workflow_dispatch`).
-
-Stages encadenados (cada uno solo arranca si el anterior pasa):
-
-| Stage            | Qué hace |
-|------------------|----------|
-| `lint`           | `ruff check .` + `ruff format --check .` |
-| `test`           | `pytest --cov=app --cov-fail-under=80` (SQLite en memoria, sin servicios externos) |
-| `build-and-push` | `az acr login` → `docker build` → push `:$SHA` y `:latest` a ACR |
-| `deploy`         | configura registry + `az containerapp secret set` + `az containerapp update --image :$SHA` |
-| `smoke-test`     | `GET https://<fqdn>/health` hasta obtener `200 {"status":"ok"}` (10 reintentos) |
+La explicación detallada de cada stage está en [pipeline.md](pipeline.md).
 
 **Requisitos previos al primer push exitoso:**
 
@@ -416,3 +426,78 @@ Stages encadenados (cada uno solo arranca si el anterior pasa):
 credenciales admin del ACR (`admin-enabled true` en el paso 2) para que Container Apps pueda
 descargar la imagen privada. La Container App del paso 3 se crea con una imagen *helloworld*
 temporal; el primer `deploy` la sustituye por `rag-chatbot:$SHA`.
+
+---
+
+## 7. Monitorización
+
+### Logs de la aplicación
+
+```powershell
+az containerapp logs show --name rag-chatbot --resource-group rg-entregable5 --follow
+```
+
+### Últimas 50 líneas, sin seguir
+
+```powershell
+az containerapp logs show --name rag-chatbot --resource-group rg-entregable5 --tail 50
+```
+
+### Estado de las revisiones
+
+```powershell
+az containerapp revision list --name rag-chatbot --resource-group rg-entregable5 --output table
+```
+
+### Endpoint de salud
+
+```powershell
+curl.exe -s "https://<fqdn>/health"
+```
+
+Respuesta esperada:
+
+```json
+{"status":"ok","postgres":"connected","qdrant":"connected","active_collection":"knowledge_1234567890","total_vectors":142}
+```
+
+---
+
+## 8. Limpieza de recursos
+
+Al terminar la práctica conviene eliminar los recursos para no incurrir en costes. El Postgres
+Flexible Server (~12‑15 €/mes) y el ACR (~4 €/mes) siguen facturando aunque no se usen.
+
+### Opción A — eliminar todo el grupo de recursos (recomendado)
+
+Borra en una sola operación la Container App, el entorno, el ACR, el Postgres y el recurso de
+Azure OpenAI. Es **irreversible**.
+
+```powershell
+az group delete --name rg-entregable5 --yes --no-wait
+```
+
+Comprobar que ha desaparecido:
+
+```powershell
+az group exists --name rg-entregable5
+```
+
+### Opción B — eliminar recursos concretos
+
+Útil si quieres conservar el recurso de Azure OpenAI (los deployments tardan en aprobarse) y borrar
+solo lo demás.
+
+```powershell
+az containerapp delete --name rag-chatbot --resource-group rg-entregable5 --yes
+az containerapp env delete --name env-entregable5 --resource-group rg-entregable5 --yes
+az acr delete --name acrentregable5 --resource-group rg-entregable5 --yes
+az postgres flexible-server delete --name pg-entregable5 --resource-group rg-entregable5 --yes
+```
+
+### Recursos fuera de Azure
+
+- **Service principal**: `az ad sp delete --id <appId del JSON de AZURE_CREDENTIALS>`
+- **Qdrant Cloud**: eliminar el clúster desde https://cloud.qdrant.io (el free tier no factura,
+  pero conviene dejarlo limpio).
+- **GitHub**: eliminar los secrets y variables del repositorio si ya no se van a usar.

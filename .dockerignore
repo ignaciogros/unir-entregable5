@@ -22,14 +22,15 @@ venv/
 .github/
 .gitignore
 
-# Documentación y planificación (no necesarias en runtime)
+# Documentación, planificación y material de referencia (no necesarios en runtime)
 doc/
 plan/
+example/
 tmp/
 *.md
-!requirements.txt
 
 # Editor / SO
+.editorconfig
 .vscode/
 .idea/
 .DS_Store

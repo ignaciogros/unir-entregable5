@@ -1,8 +1,8 @@
 # Plan de implementación
 
-## Estado actual — 2026-07-09
+## Estado actual — 2026-07-10
 
-**Fases completadas y confirmadas:** 1‑10 (código + tests + despliegue Azure verificado end-to-end).
+**Fases completadas y confirmadas:** 1‑11.
 
 **Fase 10 (CI/CD + Azure): ✅ COMPLETADA.** Pipeline en verde (lint→test→build→deploy→smoke-test),
 app desplegada en Azure Container Apps, `/health` responde `"status":"ok"`. Recursos: RG
@@ -10,17 +10,18 @@ app desplegada en Azure Container Apps, `/health` responde `"status":"ok"`. Recu
 (swedencentral), SP `sp-github-entregable5`, **Azure Database for PostgreSQL Flexible Server**,
 **Qdrant Cloud**. Secrets/variables cargados en GitHub.
 
-**Fase 11 (UI final): 🟡 APLICADA, pendiente de validación visual del usuario.** Ver sección abajo.
+**Fase 11 (UI final): ✅ COMPLETADA.**
+
+**Fase 12 (documentación y validación): 🟡 APLICADA, pendiente de push y de las capturas.**
 
 ### 👉 Retomar aquí en la próxima sesión
-1. **Validar Fase 11** en el navegador (`docker-compose up -d` → `http://localhost:8000`, Ctrl+F5):
-   flujo login→admin→chat, navegación por teclado, Lighthouse a11y >90, HTMX OK. Ajustar diseño según
-   feedback o confirmar y cerrar la fase.
-2. **Commitear lo pendiente** (el usuario ejecuta Git; no lo hace el asistente): quedaba sin commitear
-   el bloque de Fase 10 (`.github/`, docs) + toda la Fase 11 (templates + `styles.css`) + updates de
-   `CLAUDE.md`/`PLAN.md`. Nota: el push a `main` **redispara el pipeline y redespliega**.
-3. **Fase 12** (documentación + validación de rúbrica): ver sección; incluye decisión pendiente sobre
-   Makefile.
+1. **Añadir las capturas** en `doc/img/`: `00-deploy.png`, `01-lint.png`, `02-test.png`,
+   `03-build-and-push.png`, `04-deploy.png`, `05-smoke-test.png`. Los `.md` ya las enlazan.
+2. **Borrar `doc/azure-setup.md`** (sustituido por `doc/azure.md`): `git rm doc/azure-setup.md`.
+3. **Commitear y pushear** (lo ejecuta el usuario). El push a `main` **redispara el pipeline y
+   redespliega**; esa ejecución es la que hay que capturar. Ojo: el job `build-and-push` cambió,
+   conviene mirar que el smoke test de la imagen pasa.
+4. **Fase de comprobación final** de cumplimiento de `plan/entregable5.md`.
 
 **Notas de estado:**
 - Git: el asistente NO ejecuta comandos de Git ni de shell; los ejecuta el usuario. Comandos de prueba
@@ -28,9 +29,8 @@ app desplegada en Azure Container Apps, `/health` responde `"status":"ok"`. Recu
 - Infra prod: Azure DB for PostgreSQL (no Neon) + Qdrant Cloud. Razonado en CLAUDE.md; sin referencias
   a Neon en el repo.
 - Tooling de calidad: `ruff` en `requirements.txt` (>=0.6.0); gate `ruff check .` + `ruff format --check .`
-  pasa. `.editorconfig`, `doc/style-guide.md`, `scripts/lint.ps1` y config `[tool.ruff]` en pyproject
-  **aún no existen** (ruff usa defaults, línea 88). Comandos reales de lint documentados en CLAUDE.md
-  (dentro y fuera del contenedor).
+  pasa. Existe `.editorconfig`. **No** hay `[tool.ruff]` en pyproject, ni `doc/style-guide.md`, ni
+  `scripts/lint.ps1`, ni `Makefile`: descartados a propósito (ruff usa defaults, línea 88).
 - Azure OpenAI (`chat` + `embedding`) operativo; ingesta real validada; grounding del chat verificado.
 
 ---
@@ -54,23 +54,18 @@ app desplegada en Azure Container Apps, `/health` responde `"status":"ok"`. Recu
 
 ## Guía de estilo y linter (obligado cumplimiento)
 
-Guía completa en `doc/style-guide.md`. Resumen aplicable a todo el repo:
-
 - **Indentación**: **4 espacios por defecto** (Python, Dockerfile, Markdown anidado).
   **2 espacios por consenso** en: `.yml`/`.yaml`, `.html`/plantillas Jinja2, `.css`, `.js`.
-  Nunca tabuladores. Se codifica en `.editorconfig` (fuente de verdad para editores y linter).
+  Nunca tabuladores. Codificado en `.editorconfig`.
 - **Reglas comunes**: sin espacios al final de línea, salto de línea final, codificación UTF-8.
-- **Python**: `ruff` como linter y formateador. Config en `pyproject.toml`
-  (`line-length = 100`, `target-version = "py311"`; reglas `E`, `F`, `I`, `W`, `UP`, `B`).
+- **Python**: `ruff` como linter y formateador, **con sus reglas por defecto** (línea 88,
+  `E4/E7/E9/F`). No hay `[tool.ruff]` en `pyproject.toml`: activar `E501`, `I`, `UP` o `B` obligaría a
+  un refactor de alcance desconocido a cambio de cero puntos de rúbrica.
   `snake_case` para funciones/variables, `PascalCase` para clases.
 
-**Comando de lint** (debe existir y pasar en cada fase y en el pipeline):
+**Comando de lint** (debe pasar en cada fase y en el pipeline):
 
 ```powershell
-# Envoltura conveniente
-scripts\lint.ps1
-
-# Equivalente directo (multiplataforma, el que corre el CI)
 ruff check . ; if ($?) { ruff format --check . }
 ```
 
@@ -488,7 +483,7 @@ docker images | grep rag-chatbot
 >   Server, Qdrant Cloud. Secrets+variables en GitHub cargados.
 > - `.github/workflows/deploy.yml` con `az containerapp registry set` (creds admin ACR) para el pull.
 > - Gotcha: el `deploy` fallaba con `containerapp 'rag-chatbot' does not exist` hasta ejecutar el paso
->   manual 3 de `azure-setup.md` (crear entorno + Container App con imagen placeholder).
+>   manual 3 de `azure.md` (crear entorno + Container App con imagen placeholder).
 
 **Tareas (manual, una sola vez)**
 - [ ] Crear Resource Group: `az group create --name rg-entregable5 --location westeurope`
@@ -496,7 +491,7 @@ docker images | grep rag-chatbot
 - [ ] Crear Container Apps environment: `az containerapp env create ...`
 - [ ] Crear Container App inicial con imagen placeholder
 - [ ] Configurar GitHub Actions secrets y variables (ver lista en CLAUDE.md)
-- [x] Documentar todos los pasos en `doc/azure-setup.md`
+- [x] Documentar todos los pasos en `doc/azure.md`
 
 **Tareas (automatizadas)**
 - [x] `.github/workflows/deploy.yml` — *stages* encadenados con `needs:` (equivalente
@@ -508,7 +503,9 @@ docker images | grep rag-chatbot
   jobs:
     lint            → ruff check . && ruff format --check .
     test            → needs: lint    · pytest --cov=app --cov-fail-under=80
-    build-and-push  → needs: test    · docker build + push a ACR (:$SHA y :latest)
+    build-and-push  → needs: test    · docker build
+                                     · smoke test de la imagen (postgres+qdrant efímeros)
+                                     · push a ACR (:$SHA y :latest)
     deploy          → needs: build-and-push
                         · az containerapp secret set  (APP_USER, APP_PASSWORD, SECRET_KEY, ...)
                         · az containerapp update --image :$SHA
@@ -577,29 +574,34 @@ docker-compose up --build
 
 ---
 
-### Fase 12 — Documentación y validación final de rúbrica
+### Fase 12 — Documentación y validación final de rúbrica  🟡 APLICADA
 **Objetivo**: documentación completa y verificación de los 6 criterios.
 
-**Decisión pendiente** (preguntar al usuario al llegar aquí):
-- [ ] **Makefile como punto de entrada único** (`make lint/test/up/deploy`) — *wrapper* fino sobre
-  los comandos reales. Valorado: útil para la rúbrica, pero `make` no es nativo en Windows.
-  Enfoque preferido si se aprueba: Makefile + `scripts/*.ps1` en paralelo. **No es artefacto de
-  Azure** (allí solo corre la imagen; su equivalente es `az containerapp update` en el pipeline).
+**Decisiones tomadas (2026-07-10):**
+- **Makefile: descartado.** El objetivo del entregable es demostrar CI/CD; los comandos reales ya
+  están documentados. `scripts/lint.ps1` y `doc/style-guide.md` también se descartan.
+- **`[tool.ruff]` en pyproject: descartado.** Activar `E501`/`I`/`UP`/`B` obligaría a un refactor de
+  alcance desconocido a cambio de cero puntos. Ruff sigue con defaults. Sí se crea `.editorconfig`.
+- **Mejoras del docente**: se implementa el smoke test de la imagen antes de publicarla y se aligera
+  el job `lint`. Se descartan, razonadas en `doc/verificacion.md`: Gunicorn (uvicorn ya es servidor
+  de producción), `requirements-dev.txt` (rompería `docker-compose exec app pytest`) y OIDC +
+  identidad administrada (no lo exige la rúbrica y arriesga un pipeline en verde).
 
 **Tareas**
-- [ ] `README.md` en español:
-  - Descripción y arquitectura
-  - Requisitos previos (Docker, credenciales Azure OpenAI)
-  - Guía de ejecución local (paso a paso desde cero)
-  - Guía de despliegue → referencia a `doc/azure-setup.md`
-  - Variables de entorno documentadas
-  - Capturas de pantalla de login, admin y chat
-- [ ] `doc/azure-setup.md`:
-  - Crear ACR y Container App (comandos exactos)
-  - Configurar GitHub Secrets
-  - Primer despliegue manual
-  - Verificar logs con `az containerapp logs show`
-- [ ] Checklist rúbrica:
+- [x] Quitar `novalidate` del `<form>` de `login.html` (los campos ya tenían `required`; era el
+  `novalidate` lo que dejaba ver el JSON 422 de FastAPI al enviar vacío)
+- [x] `.editorconfig`
+- [x] `deploy.yml`: job `lint` instala solo ruff; smoke test de la imagen en `build-and-push`
+- [x] `.dockerignore`: excluir `example/` y `.editorconfig`
+- [x] `README.md` — aviso de proyecto académico, descripción, instalación rápida, enlace a la
+  documentación, stack, criterios de valoración, licencia AGPL
+- [x] `doc/index.md`, `doc/tecnica.md`, `doc/instalacion.md`, `doc/uso.md`, `doc/pipeline.md`,
+  `doc/verificacion.md`
+- [x] `doc/azure-setup.md` → `doc/azure.md`, con secciones nuevas de monitorización y limpieza de recursos
+- [x] `entrega.md` — texto del correo de entrega
+- [ ] `doc/img/` con las 6 capturas (las añade el usuario; los `.md` ya las enlazan)
+- [ ] `git rm doc/azure-setup.md`
+- [ ] Checklist rúbrica (documentado en `doc/verificacion.md`, falta la evidencia gráfica):
   - [ ] Criterio 1 — repo GitHub con estructura y `.env.example`
   - [ ] Criterio 2 — `docker-compose up --build` funciona desde cero
   - [ ] Criterio 3 — imagen visible en Azure Portal → ACR
@@ -608,19 +610,31 @@ docker-compose up --build
   - [ ] Criterio 6 — `/health` con DB+Qdrant, `az containerapp logs show` muestra logs
 
 **Cómo probar**
-```bash
-# Simular descarga desde cero (otro directorio, sin .env):
-git clone <repo-url> /tmp/test-entregable5
-cd /tmp/test-entregable5
-cp .env.example .env
-# Editar .env con credenciales reales
-docker-compose up --build
-curl http://localhost:8000/health
-# Esperado: todo funciona sin pasos adicionales
+```powershell
+# 1. Gate local antes de pushear
+docker-compose run --rm --no-deps app ruff check .
+docker-compose run --rm --no-deps app ruff format --check .
+docker-compose exec app pytest --cov=app --cov-report=term-missing --cov-fail-under=80
 
-# Lighthouse en Chrome sobre http://localhost:8000
-# → Performance > 80, Accessibility > 90
+# 2. Login con campos vacíos → el navegador bloquea el envío, no aparece JSON
+
+# 3. Simular descarga desde cero (otro directorio, sin .env)
+docker-compose up --build
+curl.exe -s "http://localhost:8000/health"
+
+# 4. Push a main → observar el pipeline; el nuevo paso "Smoke test de la imagen" debe pasar
+#    y capturar las 6 pantallas para doc/img/
 ```
+
+---
+
+### Fase 13 — Comprobación final de requisitos
+**Objetivo**: verificar contra `plan/entregable5.md` que no falta nada, con las capturas ya en el repo.
+
+- [ ] Releer `plan/entregable5.md` punto por punto
+- [ ] Confirmar que `doc/img/` tiene las 6 capturas y que se ven en `doc/pipeline.md`
+- [ ] Confirmar que `.dockerignore` y todos los `.md` están actualizados
+- [ ] Revisar `entrega.md`
 
 ---
 

@@ -66,13 +66,33 @@ entregable5/
 │       └── styles.css
 ├── uploads/                # PDFs subidos (volumen Docker: ./uploads:/app/uploads)
 ├── tests/
+│   ├── conftest.py
+│   ├── test_admin.py
 │   ├── test_auth.py
+│   ├── test_chat.py
+│   ├── test_database.py
 │   ├── test_health.py
-│   └── test_rag.py
+│   ├── test_ingest.py
+│   ├── test_rag.py
+│   └── test_vector_store.py
+├── doc/
+│   ├── index.md            # Índice de la documentación
+│   ├── tecnica.md          # Componentes, flujo RAG, por qué Qdrant es externo
+│   ├── instalacion.md      # Guía de ejecución local
+│   ├── azure.md            # Creación de infra, secrets, monitorización, limpieza
+│   ├── uso.md              # Guía de uso de la aplicación
+│   ├── pipeline.md         # Explicación de cada stage del CI/CD
+│   ├── verificacion.md     # Cumplimiento de rúbrica y mejoras por encima
+│   └── img/                # Capturas del pipeline (00-deploy.png … 05-smoke-test.png)
 ├── Dockerfile
 ├── docker-compose.yml
+├── .dockerignore
+├── .editorconfig
 ├── .env.example
 ├── requirements.txt
+├── README.md
+├── entrega.md              # Texto del correo que acompaña la entrega
+├── LICENSE                 # AGPL-3.0
 └── .github/
     └── workflows/
         └── deploy.yml
@@ -208,7 +228,7 @@ Fuentes:
 - **Fiabilidad**: score de similitud coseno de Qdrant × 100, redondeado a entero
 - **Nombre del PDF**: campo `source` del payload de Qdrant (nombre del archivo)
 - **Página**: campo `page` del payload de Qdrant
-- **Enlace "ver PDF"**: `/uploads/{nombre_archivo}` — los PDFs se sirven como archivos estáticos con `StaticFiles`
+- **Enlace al PDF**: el nombre del fichero enlaza a `/uploads/{nombre_archivo}` — los PDFs se sirven como archivos estáticos con `StaticFiles`
   - En local siempre funciona
   - En Azure Container Apps: funciona mientras el contenedor tenga los archivos (sin volumen persistente los pierde al reiniciar — aceptable para demo académica)
 - La respuesta de `rag.py` devuelve `{"answer": str, "sources": [{"source": str, "page": int, "score": float}]}`
@@ -251,12 +271,24 @@ si el anterior pasa). Estructura tomada del pipeline de ejemplo en Azure DevOps,
 
 ```
 jobs:
-  lint            → ruff check . && ruff format --check .
+  lint            → pip install ruff · ruff check . && ruff format --check .
   test            → needs: lint            · pytest --cov=app --cov-fail-under=80
-  build-and-push  → needs: test            · az acr login · docker build · push :$SHA y :latest
+  build-and-push  → needs: test            · az acr login · docker build
+                                           · smoke test de la imagen (ver abajo)
+                                           · push :$SHA y :latest
   deploy          → needs: build-and-push  · az containerapp secret set · update --image :$SHA
   smoke-test      → needs: deploy          · curl https://<app-url>/health → 200 {"status":"ok"}
 ```
+
+**Smoke test de la imagen** (dentro de `build-and-push`, entre `docker build` y `docker push`):
+levanta `postgres:16-alpine` y `qdrant/qdrant` en una red de Docker del runner, arranca la imagen
+recién construida contra ellos y exige que `/health` devuelva `200` con `"status":"ok"` — no
+`"degraded"`. Si falla, vuelca los logs del contenedor y **la imagen no se publica en ACR**. Un
+`docker run` suelto no valdría: `init_db.init()` crea las tablas al arrancar y el proceso muere si
+no alcanza Postgres.
+
+El job `lint` instala **solo `ruff`**, no el `requirements.txt` completo: el análisis estático no
+necesita FastAPI ni el SDK de Azure OpenAI.
 
 Variables necesarias en GitHub Actions secrets:
 `AZURE_CREDENTIALS`, `ACR_NAME`, `ACR_LOGIN_SERVER`, `CONTAINER_APP_NAME`, `RESOURCE_GROUP`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_CHAT_DEPLOYMENT`, `AZURE_OPENAI_EMBEDDING_DEPLOYMENT`, `DATABASE_URL` (prod), `QDRANT_URL` (Qdrant Cloud), `QDRANT_API_KEY`, `SECRET_KEY`, `APP_USER`, `APP_PASSWORD`
@@ -310,21 +342,25 @@ ruff check . --fix
 ruff format .
 ```
 
-> Nota: `ruff` se ejecuta dentro del contenedor (está en `requirements.txt`). Los ficheros
-> `scripts/lint.ps1`, `doc/style-guide.md`, `.editorconfig` y la config `[tool.ruff]` en
-> `pyproject.toml` descritos más abajo **aún no existen**; hasta crearlos, ruff usa sus defaults
-> (línea 88, reglas `E4/E7/E9/F`). El gate del pipeline usa los comandos de arriba.
+> Nota: `ruff` se ejecuta dentro del contenedor (está en `requirements.txt`) y corre con sus
+> **defaults** (línea 88, reglas `E4/E7/E9/F`): no hay sección `[tool.ruff]` en `pyproject.toml`,
+> y es deliberado — activar `E501`, `I` o `B` obligaría a un refactor de alcance desconocido a
+> cambio de cero puntos de rúbrica. El gate del pipeline usa los comandos de arriba.
 
 ## Reglas de trabajo (leer antes de implementar)
 
 - **Fases**: implementar una fase completa, luego ejecutar sus pruebas, luego preguntar al usuario antes de pasar a la siguiente. No se salta ningún gate.
 - **Cobertura de tests**: mínimo **80 %** medido con `pytest-cov`. Los tests se escriben en cada fase junto al código. El gate de cada fase incluye pasar `pytest --cov=app --cov-report=term-missing --cov-fail-under=80`. El pipeline CI/CD también lo aplica.
-- **Guía de estilo (obligado cumplimiento)**: detallada en `doc/style-guide.md`. **4 espacios por defecto**; **2 espacios por consenso** en `.yml`/`.yaml`, `.html`/Jinja2, `.css`, `.js`. Nunca tabuladores. Regla codificada en `.editorconfig`. Linter y formateador: **`ruff`** (config en `pyproject.toml`). Comando de lint: `scripts/lint.ps1` (equivale a `ruff check . && ruff format --check .`). El gate de cada fase y el *stage* `lint` del pipeline deben pasar sin errores.
+- **Guía de estilo (obligado cumplimiento)**: **4 espacios por defecto**; **2 espacios por consenso** en `.yml`/`.yaml`, `.html`/Jinja2, `.css`, `.js`. Nunca tabuladores. Regla codificada en `.editorconfig`. Linter y formateador: **`ruff`**, con sus reglas por defecto. Comando de lint: `ruff check . && ruff format --check .`. El gate de cada fase y el *stage* `lint` del pipeline deben pasar sin errores.
 - **UI**: diseñar con a11y en mente desde el principio (roles ARIA, etiquetas `<label>`, contraste suficiente, navegación por teclado, atributos `alt`). La UI final (diseño visual, tipografía, paleta) la genera el plugin `/frontend-design` — las plantillas de las fases intermedias son funcionales y accesibles, no necesariamente bonitas.
-- **Documentación**:
-  - `README.md` en español, completo, como proyecto final: descripción, arquitectura, requisitos, guía de ejecución local, guía de despliegue (referencia a `doc/azure-setup.md`), variables de entorno, capturas de pantalla.
-  - `doc/azure-setup.md`: guía paso a paso para crear ACR, Container App, configurar secrets de GitHub y hacer el primer despliegue manual.
-  - Ambos se escriben/actualizan en la Fase 12 (validación y documentación final).
+- **Documentación** (toda en español; escrita/actualizada en la Fase 12):
+  - `README.md`: aviso de proyecto académico, descripción del producto, instalación rápida, enlace destacado a `doc/index.md`, stack tecnológico, enlace a `doc/verificacion.md` y licencia AGPL.
+  - `doc/index.md`: índice con descripción general y enlaces al resto de apartados.
+  - `doc/tecnica.md`, `doc/instalacion.md`, `doc/azure.md`, `doc/uso.md`, `doc/pipeline.md`, `doc/verificacion.md`.
+  - `entrega.md`: texto breve del correo de entrega (qué cumple de la rúbrica, qué aporta por encima).
+  - Textos breves y comprensibles: solo lo necesario para que el docente evalúe la práctica.
+- **Sin Makefile**: descartado. El objetivo del entregable es demostrar CI/CD, y los comandos reales
+  ya están documentados. Tampoco `scripts/lint.ps1`.
 
 ## Decisiones de diseño
 
