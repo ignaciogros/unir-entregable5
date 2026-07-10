@@ -12,16 +12,19 @@ app desplegada en Azure Container Apps, `/health` responde `"status":"ok"`. Recu
 
 **Fase 11 (UI final): ✅ COMPLETADA.**
 
-**Fase 12 (documentación y validación): 🟡 APLICADA, pendiente de push y de las capturas.**
+**Fase 12 (documentación y validación): ✅ COMPLETADA.** Capturas en `doc/img/`, pipeline en verde
+con el smoke test de la imagen.
+
+**Fase 13 (comprobación final): 🟡 EN CURSO.** Ver el punto 1 de abajo: falta el informe PDF/Word.
 
 ### 👉 Retomar aquí en la próxima sesión
-1. **Añadir las capturas** en `doc/img/`: `00-deploy.png`, `01-lint.png`, `02-test.png`,
-   `03-build-and-push.png`, `04-deploy.png`, `05-smoke-test.png`. Los `.md` ya las enlazan.
-2. **Borrar `doc/azure-setup.md`** (sustituido por `doc/azure.md`): `git rm doc/azure-setup.md`.
-3. **Commitear y pushear** (lo ejecuta el usuario). El push a `main` **redispara el pipeline y
-   redespliega**; esa ejecución es la que hay que capturar. Ojo: el job `build-and-push` cambió,
-   conviene mirar que el smoke test de la imagen pasa.
-4. **Fase de comprobación final** de cumplimiento de `plan/entregable5.md`.
+1. **Bloqueante para la entrega:** maquetar `informe.md` a PDF/Word (Arial o Calibri 12, interlineado
+   1,5), insertar las 6 figuras de `doc/img/` en sus marcadores `[FIGURA n]`, rellenar los campos
+   `⟨ ⟩` y borrar el bloque de instrucciones. Es el artefacto que califica el docente; el repositorio
+   es el trabajo técnico que lo respalda.
+2. Rellenar los campos `⟨ ⟩` de `entrega.md` (URL pública, usuario, contraseña).
+3. **Commitear y pushear** (lo ejecuta el usuario). Los cambios de documentación admiten `[skip ci]`.
+4. MkDocs + GitHub Pages: **descartado** por el usuario (2026-07-10).
 
 **Notas de estado:**
 - Git: el asistente NO ejecuta comandos de Git ni de shell; los ejecuta el usuario. Comandos de prueba
@@ -599,15 +602,19 @@ docker-compose up --build
   `doc/verificacion.md`
 - [x] `doc/azure-setup.md` → `doc/azure.md`, con secciones nuevas de monitorización y limpieza de recursos
 - [x] `entrega.md` — texto del correo de entrega
-- [ ] `doc/img/` con las 6 capturas (las añade el usuario; los `.md` ya las enlazan)
-- [ ] `git rm doc/azure-setup.md`
-- [ ] Checklist rúbrica (documentado en `doc/verificacion.md`, falta la evidencia gráfica):
-  - [ ] Criterio 1 — repo GitHub con estructura y `.env.example`
-  - [ ] Criterio 2 — `docker-compose up --build` funciona desde cero
-  - [ ] Criterio 3 — imagen visible en Azure Portal → ACR
-  - [ ] Criterio 4 — URL pública de Container Apps responde
-  - [ ] Criterio 5 — workflow de Actions con todos los jobs en verde
-  - [ ] Criterio 6 — `/health` con DB+Qdrant, `az containerapp logs show` muestra logs
+- [x] `doc/img/` con las 6 capturas
+- [x] `git rm doc/azure-setup.md`
+- [x] `doc/azure.md`: comandos de subida manual a ACR (`az acr login`/`docker tag`/`docker push`),
+  que el enunciado enumera explícitamente
+- [x] Nombrar las **pruebas de integración** en `pipeline.md` y `verificacion.md` (el enunciado las
+  exige; existían pero no se llamaban así)
+- [x] Checklist rúbrica (documentado en `doc/verificacion.md`, con evidencia gráfica):
+  - [x] Criterio 1 — repo GitHub con estructura y `.env.example`
+  - [x] Criterio 2 — `docker-compose up --build` funciona desde cero
+  - [x] Criterio 3 — imagen visible en Azure Portal → ACR
+  - [x] Criterio 4 — URL pública de Container Apps responde
+  - [x] Criterio 5 — workflow de Actions con todos los jobs en verde
+  - [x] Criterio 6 — `/health` con DB+Qdrant, `az containerapp logs show` muestra logs
 
 **Cómo probar**
 ```powershell
@@ -628,13 +635,23 @@ curl.exe -s "http://localhost:8000/health"
 
 ---
 
-### Fase 13 — Comprobación final de requisitos
-**Objetivo**: verificar contra `plan/entregable5.md` que no falta nada, con las capturas ya en el repo.
+### Fase 13 — Comprobación final de requisitos  🟡 EN CURSO
+**Objetivo**: verificar contra `plan/entregable5.md` que no falta nada.
 
-- [ ] Releer `plan/entregable5.md` punto por punto
-- [ ] Confirmar que `doc/img/` tiene las 6 capturas y que se ven en `doc/pipeline.md`
-- [ ] Confirmar que `.dockerignore` y todos los `.md` están actualizados
-- [ ] Revisar `entrega.md`
+- [x] Releer `plan/entregable5.md` punto por punto
+- [x] Confirmar que `doc/img/` tiene las 6 capturas con los nombres correctos
+- [x] Confirmar que `.dockerignore` y todos los `.md` están actualizados
+- [x] Revisar `entrega.md`
+- [x] **Borrador del informe** en `informe.md` — 9 secciones, ~4 páginas maquetado, con marcadores
+  `[FIGURA n]` para las 6 capturas y campos `⟨ ⟩` para URL, usuario y contraseña.
+- [ ] **Maquetar el informe** y exportarlo a PDF/Word: Arial o Calibri 12, interlineado 1,5, insertar
+  las figuras de `doc/img/`, rellenar los campos `⟨ ⟩` y borrar el bloque de instrucciones inicial.
+  Es el artefacto que se califica.
+- [ ] Rellenar los campos `⟨ ⟩` de `entrega.md` (URL, usuario, contraseña).
+
+**Desviación consciente del enunciado:** las pautas proponen *Python (Flask)* o *Node.js (Express)*;
+se usa **Python con FastAPI**. La rúbrica no menciona framework alguno. Razonado en
+`doc/verificacion.md`.
 
 ---
 

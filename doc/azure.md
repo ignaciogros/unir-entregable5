@@ -149,6 +149,28 @@ az acr show `
   --output tsv
 ```
 
+### Subida manual de la imagen (opcional)
+
+En el funcionamiento normal, el *job* `build-and-push` del pipeline construye y publica la imagen en
+cada `push` a `main`. Si necesitas subirla a mano —por ejemplo, para el primer despliegue antes de
+configurar GitHub Actions—, estos son los comandos:
+
+```powershell
+az acr login --name $ACR_NAME
+
+docker build -t rag-chatbot:v1 .
+
+docker tag rag-chatbot:v1 "$ACR_NAME.azurecr.io/rag-chatbot:v1"
+
+docker push "$ACR_NAME.azurecr.io/rag-chatbot:v1"
+```
+
+Verificar que la imagen está en el registro:
+
+```powershell
+az acr repository show-tags --name $ACR_NAME --repository rag-chatbot --output table
+```
+
 ---
 
 ## 3. Azure Container Apps

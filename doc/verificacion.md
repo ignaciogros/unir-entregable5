@@ -86,6 +86,14 @@ Cinco *jobs* encadenados con `needs:`, disparados en cada `push` a `main`. Detal
 | `deploy` | inyectar secretos y actualizar Container Apps |
 | `smoke-test` | validar que la aplicación desplegada responde |
 
+El enunciado pide **pruebas unitarias y de integración**. Ambas están, en capas distintas:
+
+- **Unitarias** (`test`): la lógica de `app/`, con SQLite en memoria y Qdrant y Azure OpenAI mockeados.
+- **Integración** (`build-and-push`): la imagen Docker completa levantada contra un PostgreSQL 16 y un
+  Qdrant reales, exigiendo que `/health` conecte con ambos.
+- **Extremo a extremo** (`smoke-test`): la aplicación ya desplegada, consultada desde Internet contra
+  sus bases de datos de producción.
+
 **Evidencia:** [`img/00-deploy.png`](img/00-deploy.png) — ejecución completa en verde.
 
 ### 6. Monitoreo y validación — 10 %

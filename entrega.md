@@ -2,11 +2,18 @@
 
 Buenos días:
 
-Adjunto el Entregable 5. El repositorio es **https://github.com/ignaciogros/unir-entregable5** y la
-aplicación está desplegada y accesible en Azure Container Apps.
+Adjunto el Entregable 5. Se trata de un **chatbot RAG**: permite subir documentos PDF, los indexa en
+una base de datos vectorial y responde preguntas sobre ellos citando fichero, página y fiabilidad de
+cada fuente.
 
-Se trata de un **chatbot RAG**: permite subir documentos PDF, los indexa en una base de datos
-vectorial y responde preguntas sobre ellos citando fichero, página y fiabilidad de cada fuente.
+| | |
+|---|---|
+| **Repositorio** | https://github.com/ignaciogros/unir-entregable5 |
+| **Aplicación desplegada** | ⟨URL_PÚBLICA⟩ |
+| **Usuario** | ⟨USUARIO⟩ |
+| **Contraseña** | ⟨CONTRASEÑA⟩ |
+
+El endpoint de salud, accesible sin autenticación, es `⟨URL_PÚBLICA⟩/health`.
 
 ## Criterios de la rúbrica
 

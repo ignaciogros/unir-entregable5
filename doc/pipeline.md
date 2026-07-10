@@ -36,6 +36,12 @@ deliberado: el pipeline avisa, y el desarrollador arregla en local con `ruff for
 
 ![Stage test](img/02-test.png)
 
+> **Dónde están las pruebas de integración.** Este *job* cubre las **unitarias**. Las de
+> **integración** se ejecutan más adelante, sobre artefactos reales en lugar de mocks: el *job*
+> `build-and-push` levanta la imagen contra un PostgreSQL y un Qdrant de verdad, y el *job*
+> `smoke-test` ejerce la aplicación ya desplegada contra sus bases de datos de producción. Las tres
+> capas se describen abajo.
+
 ```bash
 pytest tests/ -v --cov=app --cov-report=term-missing --cov-fail-under=80
 ```
@@ -137,6 +143,18 @@ arranca pero no conecta con sus dependencias se considera un fallo, no un éxito
 | `build-and-push` | La **imagen** arranca, conecta con la base de datos, y está publicada en ACR |
 | `deploy` | Azure Container Apps corre la imagen de este *commit*, con sus secretos inyectados |
 | `smoke-test` | La aplicación **en producción** responde y alcanza PostgreSQL y Qdrant |
+
+## Las tres capas de prueba
+
+| Capa | Dónde | Qué ejercita | Dependencias |
+|---|---|---|---|
+| **Unitaria** | *job* `test` | Funciones y rutas de `app/`, aisladas | SQLite en memoria; Qdrant y Azure OpenAI mockeados |
+| **Integración** | *job* `build-and-push` | La imagen Docker completa contra servicios reales | PostgreSQL 16 y Qdrant efímeros en el *runner* |
+| **Extremo a extremo** | *job* `smoke-test` | La aplicación desplegada, desde Internet | Azure Database for PostgreSQL y Qdrant Cloud reales |
+
+Cada capa prueba lo que la anterior no puede: las unitarias no ven el `Dockerfile`, las de integración
+no ven la configuración de Azure, y las de extremo a extremo no sirven para diagnosticar qué línea de
+código falló. Las tres juntas cubren el recorrido del *commit* hasta la URL pública.
 
 ---
 
