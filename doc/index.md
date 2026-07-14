@@ -24,6 +24,7 @@ el servicio en producción, comprobando finalmente que responde.
 | [Guía de uso](uso.md) | Cómo iniciar sesión, subir PDFs, procesarlos y conversar con el chatbot |
 | [Pipeline CI/CD](pipeline.md) | Explicación de cada stage, con capturas de una ejecución real |
 | [Verificación de la rúbrica](verificacion.md) | Cumplimiento de los seis criterios y qué se aporta por encima de lo exigido |
+| [Licencias y software de terceros](licencias.md) | Licencia del proyecto, dependencias utilizadas y reconocimiento de sus autores |
 
 ---
 

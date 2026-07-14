@@ -22,15 +22,20 @@ venv/
 .github/
 .gitignore
 
+# Orquestación local (la imagen se construye igual con o sin esto)
+docker-compose.yml
+
 # Documentación, planificación y material de referencia (no necesarios en runtime)
 doc/
 plan/
 example/
 tmp/
 *.md
+*.odt
 
-# Editor / SO
+# Editor / SO / herramientas
 .editorconfig
 .vscode/
 .idea/
+.claude/
 .DS_Store

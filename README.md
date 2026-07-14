@@ -96,3 +96,7 @@ Esto implica, entre otras condiciones, que si modificas este software y lo ofrec
 través de una red, debes poner el código fuente de tu versión a disposición de sus usuarios.
 
 Copyright © 2026 Ignacio Gros.
+
+El proyecto se apoya en librerías de terceros que conservan su propia licencia. El reconocimiento de
+sus autores y la compatibilidad de cada licencia con la AGPL-3.0 están detallados en
+**[doc/licencias.md](doc/licencias.md)**.
